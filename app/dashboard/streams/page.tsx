@@ -98,7 +98,7 @@ export default async function AdminStreamsPage() {
   const unlinkedList = (streams ?? []).filter((s) => !s.match_id);
 
   // ─── Helper: extract match object from stream ─────────────────────────────
-  function extractMatchFromStream(stream: (typeof streams)[0]) {
+  function extractMatchFromStream(stream: NonNullable<typeof streams>[number]) {
     const raw = stream.event_matches;
     const m = Array.isArray(raw) ? raw[0] : raw;
     if (!m) return null;
@@ -148,7 +148,9 @@ export default async function AdminStreamsPage() {
     };
   }
 
-  function getEventTitle(stream: (typeof streams)[0]): string | null {
+  function getEventTitle(
+    stream: NonNullable<typeof streams>[number],
+  ): string | null {
     if (!stream.events) return null;
     return Array.isArray(stream.events)
       ? ((stream.events[0] as { title: string })?.title ?? null)
