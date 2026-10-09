@@ -209,16 +209,10 @@ export default async function AdminStreamsPage() {
                   eventId={stream.event_id}
                   allEvents={allEvents ?? []}
                   allMatches={allMatches}
-                  onAssign={async (youtubeUrl, matchId, evId) =>
-                    linkStreamToMatch(stream.id, youtubeUrl, matchId, evId)
-                  }
-                  onToggleLive={async (streamId, currentStatus) =>
-                    toggleLiveStatus(streamId, currentStatus)
-                  }
-                  onEdit={async (streamId, youtubeUrl, matchId, evId) =>
-                    linkStreamToMatch(streamId, youtubeUrl, matchId, evId)
-                  }
-                  onDelete={async (streamId) => deleteStream(streamId)}
+                  onAssign={linkStreamToMatch.bind(null, stream.id)}
+                  onToggleLive={toggleLiveStatus.bind(null, stream.id)}
+                  onEdit={linkStreamToMatch.bind(null, stream.id)}
+                  onDelete={deleteStream.bind(null, stream.id)}
                 />
               ))}
             </div>
@@ -252,16 +246,10 @@ export default async function AdminStreamsPage() {
                   eventId={stream.event_id}
                   allEvents={allEvents ?? []}
                   allMatches={allMatches}
-                  onAssign={async (youtubeUrl, matchId, evId) =>
-                    linkStreamToMatch(stream.id, youtubeUrl, matchId, evId)
-                  }
-                  onToggleLive={async (streamId, currentStatus) =>
-                    toggleLiveStatus(streamId, currentStatus)
-                  }
-                  onEdit={async (streamId, youtubeUrl, matchId, evId) =>
-                    linkStreamToMatch(streamId, youtubeUrl, matchId, evId)
-                  }
-                  onDelete={async (streamId) => deleteStream(streamId)}
+                  onAssign={linkStreamToMatch.bind(null, stream.id)}
+                  onToggleLive={toggleLiveStatus.bind(null, stream.id)}
+                  onEdit={linkStreamToMatch.bind(null, stream.id)}
+                  onDelete={deleteStream.bind(null, stream.id)}
                 />
               ))}
             </div>

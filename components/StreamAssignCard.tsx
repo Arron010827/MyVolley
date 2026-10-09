@@ -54,14 +54,13 @@ interface Props {
     matchId: string,
     eventId: string,
   ) => Promise<void>;
-  onToggleLive: (streamId: string, currentStatus: boolean) => Promise<void>;
+  onToggleLive: (currentStatus: boolean) => Promise<void>;
   onEdit: (
-    streamId: string,
     youtubeUrl: string,
     matchId: string,
     eventId: string,
   ) => Promise<void>;
-  onDelete: (streamId: string) => Promise<void>;
+  onDelete: () => Promise<void>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -174,7 +173,7 @@ export default function StreamAssignCard({
     }
     setEditError(null);
     startTransition(async () => {
-      await onEdit(stream!.id, editUrl.trim(), editMatchId, editEventId);
+      await onEdit(editUrl.trim(), editMatchId, editEventId);
       setIsEditing(false);
       router.refresh();
     });
@@ -182,7 +181,7 @@ export default function StreamAssignCard({
 
   async function handleToggleLive() {
     startTransition(async () => {
-      await onToggleLive(stream!.id, stream!.is_live);
+      await onToggleLive(stream!.is_live);
       router.refresh();
     });
   }
@@ -190,7 +189,7 @@ export default function StreamAssignCard({
   async function handleDelete() {
     if (!confirm("Delete this stream? This cannot be undone.")) return;
     startTransition(async () => {
-      await onDelete(stream!.id);
+      await onDelete();
       router.refresh();
     });
   }
