@@ -3,6 +3,8 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { validateStreamAssignment } from "@/lib/stream-validation";
+import { validateMatchSets } from "@/lib/match-score-validation";
 
 // ─── Verify user is organiser or admin ───────────────────────────────────────
 async function verifyAccess(eventId: string) {
@@ -193,6 +195,13 @@ export async function saveMatchSets(
   const homeScore = sets.filter((s) => s.home_points > s.away_points).length;
   const awayScore = sets.filter((s) => s.away_points > s.home_points).length;
 
+  // Validate Sets
+  const validationError = validateMatchSets(sets);
+
+  if (validationError) {
+    throw new Error(validationError);
+  }
+  
   // Update match with calculated scores
   const { error: matchError } = await supabase
     .from("event_matches")
@@ -204,6 +213,7 @@ export async function saveMatchSets(
   revalidatePath(`/events/${eventId}/manage`);
   revalidatePath(`/events/${eventId}`);
 }
+
 
 // ------------------------- Stream Management --------------------------------------------
 
@@ -221,12 +231,15 @@ export async function assignStream(
   if (!user) redirect("/login");
 
   // Validate YouTube URL
-  const { extractYouTubeId } = await import("@/lib/youtube");
-  const videoId = extractYouTubeId(youtubeUrl);
+  const videoId =   await validateStreamAssignment(supabase, {
+    youtubeUrl,
+    matchId,
+  });
   if (!videoId) throw new Error("Invalid YouTube URL");
 
   const { error } = await supabase.from("streams").insert({
     youtube_url: youtubeUrl,
+    youtube_video_id: videoId,
     event_id: eventId,
     match_id: matchId,
     created_by: user.id,
@@ -248,14 +261,18 @@ export async function editStream(
 ) {
   const supabase = await verifyAccess(eventId);
 
-  const { extractYouTubeId } = await import("@/lib/youtube");
-  const videoId = extractYouTubeId(youtubeUrl);
+  const videoId = await validateStreamAssignment(supabase, {
+    youtubeUrl,
+    matchId,
+    excludeStreamId: streamId,
+  });
   if (!videoId) throw new Error("Invalid YouTube URL");
 
   const { error } = await supabase
     .from("streams")
     .update({
       youtube_url: youtubeUrl,
+      youtube_video_id: videoId,
       match_id: matchId || null,
       event_id: newEventId || null,
     })

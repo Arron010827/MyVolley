@@ -119,6 +119,7 @@ export default function StreamAssignCard({
   const [assignEventId, setAssignEventId] = useState(eventId ?? "");
   const [assignMatchId, setAssignMatchId] = useState(match?.id ?? "");
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   // Edit state
   const [isEditing, setIsEditing] = useState(false);
@@ -156,9 +157,18 @@ export default function StreamAssignCard({
     }
     setAssignError(null);
     startTransition(async () => {
-      await onAssign(assignUrl.trim(), assignMatchId, assignEventId);
-      setAssignUrl("");
-      router.refresh();
+      try{ 
+        await onAssign(assignUrl.trim(), assignMatchId, assignEventId);
+        setAssignUrl("");
+        router.refresh();
+      }
+      catch (error) {
+        setDialogError(
+          error instanceof Error
+            ? error.message
+            : "Unable to assign this stream. Please try again.",
+        );
+    }
     });
   }
 
@@ -172,10 +182,20 @@ export default function StreamAssignCard({
       return;
     }
     setEditError(null);
+
     startTransition(async () => {
-      await onEdit(editUrl.trim(), editMatchId, editEventId);
-      setIsEditing(false);
-      router.refresh();
+      try{
+        await onEdit(editUrl.trim(), editMatchId, editEventId);
+        setIsEditing(false);
+        router.refresh();
+      }
+      catch (error) {
+        setDialogError(
+          error instanceof Error
+            ? error.message
+            : "Unable to update this stream. Please try again.",
+        );
+      }
     });
   }
 
@@ -418,6 +438,52 @@ export default function StreamAssignCard({
           </div>
         )}
       </div>
+      {dialogError && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setDialogError(null)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="stream-error-title"
+            aria-describedby="stream-error-description"
+            className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-900/50 text-red-400">
+                !
+              </div>
+
+              <h2
+                id="stream-error-title"
+                className="text-lg font-semibold text-white"
+              >
+                Unable to save stream
+              </h2>
+            </div>
+
+            <p
+              id="stream-error-description"
+              className="text-sm leading-6 text-gray-300"
+            >
+              {dialogError}
+            </p>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setDialogError(null)}
+                className="rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-700"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

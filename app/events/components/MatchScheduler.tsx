@@ -7,6 +7,7 @@ import {
   saveMatchSets,
 } from "@/app/events/[eventId]/manage/actions";
 import { Match } from "./ManagePageClient";
+import { validateMatchSets } from "@/lib/match-score-validation";
 
 interface ClubEvent {
   club_id: string;
@@ -182,73 +183,47 @@ export default function MatchScheduler({
 
   // ─── Save Sets ─────────────────────────────────────────────────────────────
   async function handleSaveSets(matchId: string) {
-    // Filter out empty sets
     const filledSets = sets
       .map((s, i) => ({
         set_number: i + 1,
-        home_points: parseInt(s.home),
-        away_points: parseInt(s.away),
-      }))
-      .filter((s) => !isNaN(s.home_points) && !isNaN(s.away_points));
+        home_points: s.home === "" ? NaN : Number(s.home),
+        away_points: s.away === "" ? NaN : Number(s.away),
+      }));
 
-    if (filledSets.length === 0) return;
-
-    // ✅ Validate each set before saving
-    for (const set of filledSets) {
-      const error = isValidSetScore(
-        set.home_points,
-        set.away_points,
-        set.set_number,
-      );
-      if (error) {
-        alert(error); // simple alert for now — can be improved to inline message later
-        return;
-      }
+    // Allow only trailing empty rows, not gaps between completed sets
+    while (
+      filledSets.length > 0 &&
+      Number.isNaN(filledSets[filledSets.length - 1].home_points) &&
+      Number.isNaN(filledSets[filledSets.length - 1].away_points)
+    ) {
+      filledSets.pop();
     }
+
+    if (filledSets.length === 0) {
+      alert("Please enter at least one completed set.");
+      return;
+    }
+
+    const error = validateMatchSets(filledSets);
+
+    if (error) {
+      alert(error);
+      return;
+    }
+
     startTransition(async () => {
-      await saveMatchSets(eventId, matchId, filledSets);
-      setEditingMatch(null);
-      setSets([
-        { home: "", away: "" },
-        { home: "", away: "" },
-        { home: "", away: "" },
-      ]);
-      router.refresh();
+      try {
+        await saveMatchSets(eventId, matchId, filledSets);
+        setEditingMatch(null);
+        router.refresh();
+      } catch (error) {
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Unable to save match scores."
+        );
+      }
     });
-  }
-
-  function isValidSetScore(
-    home: number,
-    away: number,
-    setNumber: number,
-  ): string | null {
-    const target = setNumber === 5 ? 15 : 25;
-    const maxScore = Math.max(home, away);
-    const minScore = Math.min(home, away);
-
-    // One team must have won (higher score)
-    if (home === away) return `Set ${setNumber}: scores cannot be equal`;
-
-    // Winner must reach target points
-    if (maxScore < target) {
-      return `Set ${setNumber}: winner must reach at least ${target} points`;
-    }
-
-    // If loser score lower than 24, the winning team should have exactly 25 points
-    // If loser score equal or higher than 24, score difference must be exactly 2
-    if (minScore < target - 1) {
-      // Loser hasn't reached target-1 yet, winner must be exactly at target
-      if (maxScore !== target) {
-        return `Set ${setNumber}: if loser has ${minScore} points, winner must be exactly ${target}`;
-      }
-    } else {
-      // Both teams near or above target — must be exactly 2 apart
-      if (maxScore - minScore !== 2) {
-        return `Set ${setNumber}: winner must lead by exactly 2 points (e.g. ${target}-${target - 2} or ${target + 1}-${target - 1})`;
-      }
-    }
-
-    return null; // valid
   }
 
   function openScoreEditor(match: Match) {
@@ -475,7 +450,34 @@ export default function MatchScheduler({
                       {/* Score cell */}
                       <td className="px-5 py-3 text-center">
                         {editingMatch === match.id ? (
-                          <div className="space-y-1">
+                          <div className="space-y-1">  
+                            <div className="flex items-center justify-center gap-2 mt-2">
+                              <label className="text-xs text-gray-400">
+                                Number of sets
+                              </label>
+
+                              <select
+                                value={sets.length}
+                                onChange={(e) => {
+                                  const count = Number(e.target.value);
+
+                                  setSets((previous) =>
+                                    Array.from(
+                                      { length: count },
+                                      (_, i) => previous[i] ?? { home: "", away: "" }
+                                    )
+                                  );
+                                }}
+                                className="bg-gray-700 border border-gray-600 text-white rounded px-2 py-1 text-xs"
+                              >
+                                {[1, 2, 3, 4, 5].map((count) => (
+                                  <option key={count} value={count}>
+                                    {count}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
                             {sets.map((set, i) => (
                               <div
                                 key={i}
@@ -517,30 +519,6 @@ export default function MatchScheduler({
                                 />
                               </div>
                             ))}
-
-                            {/* Add/remove set buttons */}
-                            <div className="flex justify-center gap-2 mt-1">
-                              {sets.length < 5 && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setSets([...sets, { home: "", away: "" }])
-                                  }
-                                  className="text-xs text-gray-400 hover:text-white"
-                                >
-                                  + Set
-                                </button>
-                              )}
-                              {sets.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setSets(sets.slice(0, -1))}
-                                  className="text-xs text-gray-400 hover:text-red-400"
-                                >
-                                  - Set
-                                </button>
-                              )}
-                            </div>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center gap-1">

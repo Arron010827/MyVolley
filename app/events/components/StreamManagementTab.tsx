@@ -125,9 +125,9 @@ export default function StreamManagementTab({
                 allEvents={allEvents}
                 allMatches={availableMatches}
                 onAssign={handleAssign}
-                onToggleLive={handleToggleLive}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
+                onToggleLive={async () => {}}
+                onEdit={async () => {}}
+                onDelete={async () => {}}
               />
             ))}
           </div>
@@ -156,9 +156,20 @@ export default function StreamManagementTab({
                 allEvents={allEvents}
                 allMatches={availableMatches}
                 onAssign={handleAssign}
-                onToggleLive={handleToggleLive}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
+                onToggleLive={(currentStatus) =>
+                  handleToggleLive(streamByMatchId[match.id]!.id, currentStatus)
+                }
+                onEdit={(youtubeUrl, matchId, newEventId) =>
+                  handleEdit(
+                    streamByMatchId[match.id]!.id,
+                    youtubeUrl,
+                    matchId,
+                    newEventId
+                  )
+                }
+                onDelete={() =>
+                  handleDelete(streamByMatchId[match.id]!.id)
+                }
               />
             ))}
           </div>

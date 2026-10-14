@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractYouTubeId } from "@/lib/youtube";
+import { validateStreamAssignment } from "@/lib/stream-validation";
 
 // ─── Create a new stream ─────────────────────────────────────────────────────
 export async function createStream(formData: FormData) {
@@ -31,13 +32,17 @@ export async function createStream(formData: FormData) {
   if (!match_id) throw new Error("A match must be selected");
 
   // Validate the YouTube URL before saving
-  const videoId = extractYouTubeId(youtube_url);
+   const videoId =   await validateStreamAssignment(supabase, {
+    youtubeUrl: youtube_url,
+    matchId: match_id,
+  });
   if (!videoId) {
     throw new Error("Invalid YouTube URL — please use a standard YouTube link");
   }
 
   const { error } = await supabase.from("streams").insert({
     youtube_url,
+    youtube_video_id: videoId,
     event_id: event_id || null, // empty string → null in DB
     match_id: match_id || null,
     created_by: user.id,
@@ -72,14 +77,18 @@ export async function linkStreamToMatch(
 
   if (!profile?.is_admin) redirect("/dashboard");
 
-  const { extractYouTubeId } = await import("@/lib/youtube");
-  const videoId = extractYouTubeId(youtubeUrl);
+  const videoId = await validateStreamAssignment(supabase, {
+    youtubeUrl,
+    matchId,
+    excludeStreamId: streamId,
+  });
   if (!videoId) throw new Error("Invalid YouTube URL");
 
   const { error } = await supabase
     .from("streams")
     .update({
       youtube_url: youtubeUrl,
+      youtube_video_id: videoId,
       match_id: matchId || null,
       event_id: eventId || null,
     })

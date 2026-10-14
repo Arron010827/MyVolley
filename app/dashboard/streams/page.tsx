@@ -229,29 +229,38 @@ export default async function AdminStreamsPage() {
           </div>
         ) : (
           linkedStreams.length > 0 && (
-            <div className="space-y-3">
-              {linkedStreams.map((stream) => (
-                <StreamAssignCard
-                  key={stream.id}
-                  stream={{
-                    id: stream.id,
-                    youtube_url: stream.youtube_url,
-                    is_live: stream.is_live,
-                    match_id: stream.match_id,
-                    event_id: stream.event_id,
-                  }}
-                  match={extractMatchFromStream(stream)}
-                  eventTitle={getEventTitle(stream)}
-                  createdBy={null}
-                  eventId={stream.event_id}
-                  allEvents={allEvents ?? []}
-                  allMatches={allMatches}
-                  onAssign={linkStreamToMatch.bind(null, stream.id)}
-                  onToggleLive={toggleLiveStatus.bind(null, stream.id)}
-                  onEdit={linkStreamToMatch.bind(null, stream.id)}
-                  onDelete={deleteStream.bind(null, stream.id)}
-                />
-              ))}
+            <div className="mb-10">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <span className="text-yellow-400">✅</span>
+                Linked Streams
+                <span className="text-sm text-gray-500 font-normal">
+                  ({linkedStreams.length})
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {linkedStreams.map((stream) => (
+                  <StreamAssignCard
+                    key={stream.id}
+                    stream={{
+                      id: stream.id,
+                      youtube_url: stream.youtube_url,
+                      is_live: stream.is_live,
+                      match_id: stream.match_id,
+                      event_id: stream.event_id,
+                    }}
+                    match={extractMatchFromStream(stream)}
+                    eventTitle={getEventTitle(stream)}
+                    createdBy={null}
+                    eventId={stream.event_id}
+                    allEvents={allEvents ?? []}
+                    allMatches={allMatches}
+                    onAssign={linkStreamToMatch.bind(null, stream.id)}
+                    onToggleLive={toggleLiveStatus.bind(null, stream.id)}
+                    onEdit={linkStreamToMatch.bind(null, stream.id)}
+                    onDelete={deleteStream.bind(null, stream.id)}
+                  />
+                ))}
+              </div>
             </div>
           )
         )}
