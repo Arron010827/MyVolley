@@ -4,6 +4,8 @@ import { useState } from "react";
 import ClubGroupManager from "@/app/events/components/ClubGroupManager";
 import MatchScheduler from "@/app/events/components/MatchScheduler";
 import StreamManagementTab from "@/app/events/components/StreamManagementTab";
+import type { BracketData } from "@/lib/bracket-types";
+import BracketManager from "@/app/events/components/BracketManager";
 
 interface Props {
   event: { id: string; title: string; type: string };
@@ -34,6 +36,7 @@ interface Props {
     home_club: string;
     away_club: string;
   }[];
+  bracket: BracketData | null;
 }
 
 export interface ClubInfo {
@@ -68,8 +71,9 @@ export default function ManagePageClient({
   streams,
   allEvents,
   allMatches,
+  bracket,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"teams" | "schedule" | "streams">(
+  const [activeTab, setActiveTab] = useState<"teams" | "schedule" | "bracket" | "streams">(
     "teams",
   );
 
@@ -98,6 +102,17 @@ export default function ManagePageClient({
           📅 Match Schedule
         </button>
         <button
+          type="button"
+          onClick={() => setActiveTab("bracket")}
+          className={`px-5 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            activeTab === "bracket"
+              ? "bg-gray-900 border border-b-0 border-gray-800 text-white"
+              : "text-gray-500 hover:text-white"
+          }`}
+        >
+          🏆 Elimination Bracket
+        </button>
+        <button
           onClick={() => setActiveTab("streams")}
           className={`px-5 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
             activeTab === "streams"
@@ -124,8 +139,16 @@ export default function ManagePageClient({
           eventId={eventId}
           eventType={event.type}
           clubEvents={clubEvents}
-          matches={matches}
+          matches={matches.filter(
+            (match) => match.round === "Group Stage" || match.round === "League Stage"
+          )}
         />
+      )}
+      {activeTab === "bracket" && (
+        <BracketManager
+         eventId={eventId}
+         bracket={bracket}
+         clubs={clubEvents} />
       )}
       {activeTab === "streams" && (
         <StreamManagementTab

@@ -10,6 +10,8 @@ import StreamCard, {
   isPastStream,
 } from "@/components/StreamCard";
 import FeaturedStream from "./FeaturedStream";
+import { BracketBoard } from "./BracketBoard";
+import type { BracketData } from "@/lib/bracket-types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Stream {
@@ -75,6 +77,7 @@ interface Props {
   clubEvents: ClubEvent[];
   matchSets: MatchSet[];
   eventId: string;
+  bracket: BracketData | null;
   now: string;
 }
 
@@ -193,15 +196,12 @@ export default function EventTabs({
   clubEvents,
   matchSets,
   eventId,
+  bracket,
   now,
 }: Props) {
   const [activeTab, setActiveTab] = useState<
     "featured" | "schedule" | "standings" | "bracket"
   >("featured");
-  const [detailsOpen, setDetailsOpen] = useState(false);
-
-  const upcomingStreams = streams.filter((s) => isUpcomingStream(s, now));
-  const pastStreams = streams.filter((s) => isPastStream(s, now));
 
   // Group matches by group
   const matchesByGroup = matches.reduce<Record<string, Match[]>>((acc, m) => {
@@ -212,7 +212,15 @@ export default function EventTabs({
   }, {});
 
   // Calculate standings per group
-  const allStats = calculateStandings(matches, clubEvents, matchSets ?? []);
+  const groupMatchIds = new Set(
+    matches.filter((m) => m.round === "Group Stage" || m.round === "League Stage")
+      .map((m) => m.id)
+  );
+  const allStats = calculateStandings(
+    matches.filter((m) => groupMatchIds.has(m.id)),
+    clubEvents,
+    (matchSets ?? []).filter((s) => groupMatchIds.has(s.match_id)),
+  );
   const statsByGroup = allStats.reduce<Record<string, typeof allStats>>(
     (acc, s) => {
       const key = s.group_name ?? "all";
@@ -482,15 +490,13 @@ export default function EventTabs({
 
       {/* ── Bracket tab ───────────────────────────────────────────────────── */}
       {activeTab === "bracket" && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl py-16 text-center text-gray-500">
-          <p className="text-2xl mb-2">🔱</p>
-          <p className="text-lg font-medium text-gray-400">
-            Bracket Coming Soon
-          </p>
-          <p className="text-sm mt-1">
-            Elimination bracket will be available in a future update
-          </p>
-        </div>
+        bracket ? (
+          <BracketBoard bracket={bracket} />
+        ) : (
+          <div className="rounded-xl border border-gray-800 bg-gray-900 py-16 text-center text-gray-500">
+            The organiser has not published an elimination bracket yet.
+          </div>
+        )
       )}
     </div>
   );

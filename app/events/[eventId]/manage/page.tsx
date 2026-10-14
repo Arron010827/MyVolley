@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import ManagePageClient from "@/app/events/components/ManagePageClient";
+import { getEventBracket } from "@/lib/bracket-data";
 
 export default async function ManageEventPage({
   params,
@@ -192,6 +193,8 @@ export default async function ManageEventPage({
     };
   });
 
+  const bracket = await getEventBracket(supabase, eventId);
+
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       {/* Header */}
@@ -226,6 +229,7 @@ export default async function ManageEventPage({
           streams={eventStreams ?? []}
           allEvents={allEvents ?? []}
           allMatches={allMatches}
+          bracket={bracket}
         />
       </div>
     </main>

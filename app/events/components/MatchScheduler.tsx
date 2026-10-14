@@ -176,7 +176,7 @@ export default function MatchScheduler({
 
     // Save to DB
     startTransition(async () => {
-      await saveMatches(eventId, generatedMatches);
+      await saveMatches( eventId, generatedMatches, eventType === "league" ? "league" : "group", );
       router.refresh();
     });
   }

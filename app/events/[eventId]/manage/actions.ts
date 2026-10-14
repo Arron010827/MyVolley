@@ -113,42 +113,53 @@ export async function saveMatches(
     group_name: string | null;
     round: string;
   }[],
+  stage: "group" | "league",
 ) {
   const supabase = await verifyAccess(eventId);
 
-  // Delete existing matches for this event first
-  await supabase.from("event_matches").delete().eq("event_id", eventId);
+  const expectedRound =
+  stage === "group" ? "Group Stage" : "League Stage";
+  
+  if (matches.some((m) => m.round !== expectedRound)) {
+    throw new Error(
+      `Only ${expectedRound} matches can be generated here.`,
+    );
+  }
 
-  // Check how many matches exist before delete
-  const { count: beforeCount } = await supabase
-    .from("event_matches")
-    .select("*", { count: "exact", head: true })
-    .eq("event_id", eventId);
-
-  console.log("Matches before delete:", beforeCount);
-
+  // Delete matches belonging to the selected stage only.
   const { error: deleteError } = await supabase
     .from("event_matches")
     .delete()
-    .eq("event_id", eventId);
+    .eq("event_id", eventId)
+    .eq("stage", stage);
 
-  if (deleteError) throw new Error(`Delete failed: ${deleteError.message}`);
+  if (deleteError) throw new Error(`Failed to delete ${stage} matches: ${deleteError.message}`);
 
-  // Check after delete
-  const { count: afterCount } = await supabase
+  const { data: lastMatch, error: numberError } = await supabase
     .from("event_matches")
-    .select("*", { count: "exact", head: true })
-    .eq("event_id", eventId);
+    .select("match_number")
+    .eq("event_id", eventId)
+    .order("match_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (numberError) throw new Error(numberError.message);
+  const nextNumber = (lastMatch?.match_number ?? 0) + 1;
 
-  console.log("Matches after delete:", afterCount);
-  console.log("Inserting matches:", matches.length);
+  const inserted = matches.map((m, index) => ({
+    ...m,
+    match_number: nextNumber + index,
+    stage,
+    event_id: eventId,
+  }));
 
   // Insert new matches
-  const { error } = await supabase
-    .from("event_matches")
-    .insert(matches.map((m) => ({ ...m, event_id: eventId })));
+  if (matches.length > 0) {
+    const { error: insertError } = await supabase
+      .from("event_matches")
+      .insert(inserted);
 
-  if (error) throw new Error(error.message);
+    if (insertError) throw new Error(`Failed to generate ${stage} matches: ${insertError.message}`);
+  }
 
   revalidatePath(`/events/${eventId}/manage`);
 }
@@ -181,6 +192,13 @@ export async function saveMatchSets(
 ) {
   const supabase = await verifyAccess(eventId);
 
+  // Validate Sets
+  const validationError = validateMatchSets(sets);
+
+  if (validationError) {
+    throw new Error(validationError);
+  }
+  
   // Delete existing sets for this match first
   await supabase.from("event_match_sets").delete().eq("match_id", matchId);
 
@@ -195,13 +213,6 @@ export async function saveMatchSets(
   const homeScore = sets.filter((s) => s.home_points > s.away_points).length;
   const awayScore = sets.filter((s) => s.away_points > s.home_points).length;
 
-  // Validate Sets
-  const validationError = validateMatchSets(sets);
-
-  if (validationError) {
-    throw new Error(validationError);
-  }
-  
   // Update match with calculated scores
   const { error: matchError } = await supabase
     .from("event_matches")

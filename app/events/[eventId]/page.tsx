@@ -2,13 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EventTabs from "@/app/events/components/EventTabs";
-import StreamCard, {
-  extractMatch,
-  getStreamTitle,
-  formatMatchDateTime,
-  isUpcomingStream,
-  isPastStream,
-} from "@/components/StreamCard";
+import { getEventBracket } from "@/lib/bracket-data";
 
 // ─── Badge colours per event type ───────────────────────────────────────────
 const TYPE_COLORS: Record<string, string> = {
@@ -175,6 +169,8 @@ export default async function EventDetailPage({
     .eq("event_id", eventId)
     .order("created_at", { ascending: false });
 
+  const bracket = await getEventBracket(supabase, eventId);
+
   const now = new Date().toISOString();
 
   return (
@@ -232,6 +228,7 @@ export default async function EventDetailPage({
           clubEvents={clubEvents}
           matchSets={matchSets ?? []}
           eventId={eventId}
+          bracket={bracket}
           now={now}
         />
       </div>
