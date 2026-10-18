@@ -174,10 +174,68 @@ export default function MatchScheduler({
       currentTime = addMinutes(currentTime, matchDuration); */
     });
 
-    // Save to DB
+    // Save generated schedule to the database.
     startTransition(async () => {
-      await saveMatches( eventId, generatedMatches, eventType === "league" ? "league" : "group", );
-      router.refresh();
+      const stage =
+        eventType === "league" ? "league" : "group";
+
+      try {
+        try {
+          // First attempt without replacement confirmation.
+          await saveMatches(
+            eventId,
+            generatedMatches,
+            stage,
+            false,
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unknown error";
+
+          // Other errors should not trigger confirmation.
+          if (!message.includes("SCHEDULE_RESET_REQUIRED")) {
+            throw error;
+          }
+
+          // Existing schedule detected: ask the organiser.
+          const confirmed = window.confirm(
+            `An existing ${stage} schedule was found.\n\n` +
+            "Regenerating will replace the existing matches " +
+            "and their recorded scores. Linked streams or other " +
+            "references may also be affected.\n\n" +
+            "The elimination bracket and other stages will remain unchanged.\n\n" +
+            "Do you want to continue?"
+          );
+
+          if (!confirmed) {
+            return;
+          }
+
+          // Retry only after explicit confirmation.
+          await saveMatches(
+            eventId,
+            generatedMatches,
+            stage,
+            true,
+          );
+        }
+
+        // Refresh only after successful regeneration.
+        router.refresh();
+      } catch (error) {
+        console.error(
+          "Schedule regeneration failed:",
+          error,
+        );
+
+        window.alert(
+          error instanceof Error
+            ? error.message
+            : "Unable to generate the schedule."
+        );
+      }
     });
   }
 
@@ -265,7 +323,10 @@ export default function MatchScheduler({
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <h2 className="font-semibold text-lg mb-4">Generate Schedule</h2>
         <p className="text-gray-500 text-sm mb-4">
-          ⚠️ Generating a new schedule will replace the existing one.
+          Generate a group or league match schedule automatically.
+          If a schedule already exists, you will be asked to
+          confirm before replacing it. Other competition stages
+          will not be regenerated.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">

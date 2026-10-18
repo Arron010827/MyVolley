@@ -76,3 +76,52 @@ export async function saveBracketSets(
   if (error) throw new Error(error.message);
   refresh(eventId);
 }
+
+export async function applyGroupQualifiers(
+  eventId: string,
+  perGroup: number,
+  assignments: {
+    bracket_match_id: string;
+    club_id: string;
+    slot: BracketSlot;
+  }[],
+  confirmReplace = false,
+) {
+  // Validate basic inputs before calling PostgreSQL.
+  if (
+    !Number.isInteger(perGroup) ||
+    perGroup < 1 ||
+    perGroup > 64
+  ) {
+    throw new Error(
+      "Invalid number of qualifiers per group.",
+    );
+  }
+
+  if (assignments.length === 0) {
+    throw new Error(
+      "No qualified clubs have been assigned.",
+    );
+  }
+
+  const supabase = await authenticatedDb();
+
+  // PostgreSQL recalculates qualification and
+  // atomically updates the bracket assignments.
+  const { error } = await supabase.rpc(
+    "apply_group_qualifiers",
+    {
+      p_event_id: eventId,
+      p_per_group: perGroup,
+      p_assignments: assignments,
+      p_confirm_replace: confirmReplace,
+    },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  // Refresh organiser and public bracket views.
+  refresh(eventId);
+}

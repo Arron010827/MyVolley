@@ -114,6 +114,7 @@ export async function saveMatches(
     round: string;
   }[],
   stage: "group" | "league",
+  confirmReset = false,
 ) {
   const supabase = await verifyAccess(eventId);
 
@@ -126,42 +127,24 @@ export async function saveMatches(
     );
   }
 
-  // Delete matches belonging to the selected stage only.
-  const { error: deleteError } = await supabase
-    .from("event_matches")
-    .delete()
-    .eq("event_id", eventId)
-    .eq("stage", stage);
+  // Perform schedule regeneration in one
+  // PostgreSQL transaction.
+  const { error } = await supabase.rpc(
+    "regenerate_event_stage_schedule",
+    {
+      p_event_id: eventId,
+      p_stage: stage,
+      p_matches: matches,
+      p_confirm_reset: confirmReset,
+    },
+  );
 
-  if (deleteError) throw new Error(`Failed to delete ${stage} matches: ${deleteError.message}`);
-
-  const { data: lastMatch, error: numberError } = await supabase
-    .from("event_matches")
-    .select("match_number")
-    .eq("event_id", eventId)
-    .order("match_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (numberError) throw new Error(numberError.message);
-  const nextNumber = (lastMatch?.match_number ?? 0) + 1;
-
-  const inserted = matches.map((m, index) => ({
-    ...m,
-    match_number: nextNumber + index,
-    stage,
-    event_id: eventId,
-  }));
-
-  // Insert new matches
-  if (matches.length > 0) {
-    const { error: insertError } = await supabase
-      .from("event_matches")
-      .insert(inserted);
-
-    if (insertError) throw new Error(`Failed to generate ${stage} matches: ${insertError.message}`);
+  if (error) {
+    throw new Error(error.message);
   }
 
   revalidatePath(`/events/${eventId}/manage`);
+  revalidatePath(`/events/${eventId}`);
 }
 
 // ─── Update match score ───────────────────────────────────────────────────────

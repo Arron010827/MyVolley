@@ -146,9 +146,11 @@ export default function ManagePageClient({
       )}
       {activeTab === "bracket" && (
         <BracketManager
-         eventId={eventId}
-         bracket={bracket}
-         clubs={clubEvents} />
+          eventId={eventId}
+          bracket={bracket}
+          clubs={clubEvents}
+          qualificationClubs={clubEvents}
+          qualificationMatches={matches} />
       )}
       {activeTab === "streams" && (
         <StreamManagementTab

@@ -10,6 +10,11 @@ import {
   assignBracketClub,
   saveBracketSets,
 } from "@/app/events/[eventId]/manage/bracket-actions";
+import QualificationPlanner from "./QualificationPlanner";
+import type {
+  StandingClub,
+  StandingMatch,
+} from "@/lib/group-standings";
 
 type Draft = { home: string; away: string };
 const sizes = [4, 8, 16, 32, 64] as const;
@@ -18,10 +23,14 @@ export default function BracketManager({
   eventId,
   bracket,
   clubs,
+  qualificationClubs,
+  qualificationMatches,
 }: {
   eventId: string;
   bracket: BracketData | null;
   clubs: BracketClub[];
+  qualificationClubs: StandingClub[];
+  qualificationMatches: StandingMatch[];
 }) {
   const router = useRouter();
   const [size, setSize] = useState(bracket?.bracketSize ?? 16);
@@ -132,7 +141,17 @@ export default function BracketManager({
 
       {bracket ? (
         <>
-          <BracketBoard bracket={bracket} selectedId={selectedId} onSelect={setSelectedId} />
+        <QualificationPlanner
+          eventId={eventId}
+          bracket={bracket}
+          clubs={qualificationClubs}
+          matches={qualificationMatches}
+        />
+          <BracketBoard 
+            bracket={bracket} 
+            selectedId={selectedId} 
+            onSelect={setSelectedId} 
+          />
           <p className="text-sm text-gray-400">Select a match card to assign clubs or enter set scores. Green indicates a completed winning team. Dashed lines show progression to the third-place match.</p>
           {selected && (
             <section className="rounded-xl border border-gray-700 bg-gray-900 p-5">

@@ -38,6 +38,7 @@ interface Match {
   away_score: number | null;
   group_name: string | null;
   round: string | null;
+  stage: string | null;
   home_club: ClubInfo | null;
   away_club: ClubInfo | null;
   home_club_id: string;
@@ -202,14 +203,89 @@ export default function EventTabs({
   const [activeTab, setActiveTab] = useState<
     "featured" | "schedule" | "standings" | "bracket"
   >("featured");
+  const [scheduleSubTab, setScheduleSubTab] = useState<
+    "group" | "elimination"
+  >("group");
 
-  // Group matches by group
-  const matchesByGroup = matches.reduce<Record<string, Match[]>>((acc, m) => {
-    const key = m.group_name ?? "all";
+  // Group matches by stage type (group stage vs elimination)
+  const eliminationRounds = [
+    "Round of 64",
+    "Round of 32",
+    "Round of 16",
+    "Quarterfinal",
+    "Quarterfinals",
+    "Semifinal",
+    "Semifinals",
+    "Final",
+    "Third Place",
+  ];
+
+  // Use stage when present; support older records as well.
+  function isEliminationMatch(match: Match) {
+    if (match.stage !== null) {
+      return match.stage === "elimination";
+    }
+
+    return eliminationRounds.includes(match.round ?? "");
+  }
+
+  const scheduleMatches = matches.filter((match) => {
+    const elimination = isEliminationMatch(match);
+
+    return scheduleSubTab === "elimination"
+      ? elimination
+      : !elimination;
+  });
+
+  const matchesByGroup = scheduleMatches.reduce<
+    Record<string, Match[]>
+  >((acc, match) => {
+    let key: string;
+
+    if (scheduleSubTab === "elimination") {
+      key = match.round ?? "Elimination";
+    } else if (
+      match.stage === "repechage" ||
+      match.round === "Repechage"
+    ) {
+      key = "Repechage";
+    } else if (match.group_name) {
+      key = `Group ${match.group_name}`;
+    } else {
+      key = match.round ?? "Group Stage";
+    }
+
     if (!acc[key]) acc[key] = [];
-    acc[key].push(m);
+    acc[key].push(match);
+
     return acc;
   }, {});
+
+  // Sort elimination sections in competition order.
+  const roundOrder: Record<string, number> = {
+    "Round of 64": 1,
+    "Round of 32": 2,
+    "Round of 16": 3,
+    Quarterfinal: 4,
+    Quarterfinals: 4,
+    Semifinal: 5,
+    Semifinals: 5,
+    "Third Place": 6,
+    Final: 7,
+  };
+
+  const scheduleGroups = Object.entries(matchesByGroup).sort(
+    ([a], [b]) => {
+      if (scheduleSubTab !== "elimination") {
+        return a.localeCompare(b);
+      }
+
+      return (
+        (roundOrder[a] ?? 99) -
+        (roundOrder[b] ?? 99)
+      );
+    },
+  );
 
   // Calculate standings per group
   const groupMatchIds = new Set(
@@ -270,24 +346,45 @@ export default function EventTabs({
       {/* ── Schedule tab ──────────────────────────────────────────────────── */}
       {activeTab === "schedule" && (
         <div className="space-y-6">
-          {matches.length === 0 ? (
+          <div className="flex gap-2 border-b border-gray-800 pb-3">
+            <button
+              type="button"
+              onClick={() => setScheduleSubTab("group")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                scheduleSubTab === "group"
+                  ? "bg-red-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:text-white"
+              }`}
+            >
+              Group / League
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setScheduleSubTab("elimination")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                scheduleSubTab === "elimination"
+                  ? "bg-red-600 text-white"
+                  : "bg-gray-800 text-gray-400 hover:text-white"
+              }`}
+            >
+              Elimination
+            </button>
+          </div>
+          {scheduleMatches.length === 0 ? (
             <div className="bg-gray-900 border border-gray-800 rounded-xl py-16 text-center text-gray-500">
               <p>No schedule published yet</p>
               <p className="text-sm mt-1">Check back soon!</p>
             </div>
           ) : (
-            Object.entries(matchesByGroup).map(([groupKey, groupMatches]) => (
+            scheduleGroups.map(([groupKey, groupMatches]) => (
               <div
                 key={groupKey}
                 className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
               >
                 <div className="px-5 py-3 border-b border-gray-800">
                   <span className="text-sm font-bold text-white">
-                    {groupKey === "all"
-                      ? event.type === "league"
-                        ? "League Stage"
-                        : "Group Stage"
-                      : `Group ${groupKey}`}
+                    {groupKey}
                   </span>
                   <span className="text-gray-500 text-xs ml-2">
                     {groupMatches.length} matches
