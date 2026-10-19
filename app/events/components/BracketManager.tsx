@@ -6,7 +6,7 @@ import { BracketBoard } from "./BracketBoard";
 import type { BracketClub, BracketData, BracketSet, BracketSlot } from "@/lib/bracket-types";
 import { validateMatchSets } from "@/lib/match-score-validation";
 import {
-  createEventBracket,
+  generateBracketWithAssignments,
   assignBracketClub,
   saveBracketSets,
 } from "@/app/events/[eventId]/manage/bracket-actions";
@@ -17,6 +17,12 @@ import type {
 } from "@/lib/group-standings";
 
 type Draft = { home: string; away: string };
+type PlannedBracketAssignment = {
+  phase: "main" | "repechage";
+  position: number;
+  slot: BracketSlot;
+  club_id: string;
+};
 const sizes = [4, 8, 16, 32, 64] as const;
 
 export default function BracketManager({
@@ -35,7 +41,6 @@ export default function BracketManager({
   const router = useRouter();
   const [size, setSize] = useState(bracket?.bracketSize ?? 16);
   const [third, setThird] = useState(bracket?.thirdPlaceEnabled ?? false);
-  const [repechageCount, setRepechageCount] = useState(bracket?.repechageCount ?? 0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft[]>([{ home: "", away: "" }, { home: "", away: "" }, { home: "", away: "" }]);
   const [pending, setPending] = useState(false);
@@ -68,6 +73,22 @@ export default function BracketManager({
       setPending(false);
     }
   }
+
+async function generateFromPlanner(
+  repechageCount: number,
+  assignments: PlannedBracketAssignment[],
+) {
+  await mutate((confirmReset) =>
+    generateBracketWithAssignments(
+      eventId,
+      size,
+      third,
+      repechageCount,
+      assignments,
+      confirmReset,
+    ),
+  );
+}
 
   const incoming = (slot: BracketSlot) => bracket?.matches.some((m) =>
     (m.winnerToId === selectedId && m.winnerToSlot === slot)
@@ -116,7 +137,6 @@ export default function BracketManager({
 
                 if (selectedSize !== undefined) {
                 setSize(selectedSize);
-                setRepechageCount(0);
                 }
             }} className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white">
               {sizes.map((n) => <option key={n} value={n}>{n} teams</option>)}
@@ -125,28 +145,19 @@ export default function BracketManager({
           <label className="flex items-center gap-2 pb-2 text-sm text-gray-300">
             <input type="checkbox" checked={third} onChange={(e) => setThird(e.target.checked)} /> Third-place match
           </label>
-          <label className="space-y-1 text-sm text-gray-300">
-            <span className="block">Repechage matches</span>
-            <input type="number" value={repechageCount} min={0} max={size} onChange={(e) => setRepechageCount(Math.min(size, Math.max(0, Number(e.target.value))))} className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white" />
-          </label>
-          <button type="button" disabled={pending} className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50" onClick={() => void mutate((confirmed) => createEventBracket(eventId, size, third, repechageCount, confirmed))}>
-            {bracket ? "Regenerate bracket" : "Create bracket"}
-          </button>
         </div>
-        <p className="mt-3 text-xs text-gray-400">
-          Repechage winners fill the first available bracket slots (left-to-right), instead of being added on top of the selected bracket size.
-          Regenerating a bracket replaces its teams and scores, but preserves group and league matches.
-        </p>
+
       </section>
 
+      <QualificationPlanner
+        eventId={eventId}
+        bracketSize={size}
+        clubs={qualificationClubs}
+        matches={qualificationMatches}
+      />
+      
       {bracket ? (
         <>
-        <QualificationPlanner
-          eventId={eventId}
-          bracket={bracket}
-          clubs={qualificationClubs}
-          matches={qualificationMatches}
-        />
           <BracketBoard 
             bracket={bracket} 
             selectedId={selectedId} 
@@ -159,21 +170,33 @@ export default function BracketManager({
                 <h3 className="font-semibold">{selected.phase === "repechage" ? "Repechage" : selected.phase === "third_place" ? "Third-place match" : selected.round} · Match {selected.position + 1}</h3>
                 <button className="text-sm text-gray-400 hover:text-white" onClick={() => setSelectedId(null)} type="button">Close ✕</button>
               </div>
+              
               <div className="mb-5 grid gap-3 sm:grid-cols-2">
                 {(["home", "away"] as const).map((slot) => {
                   const automatic = incoming(slot);
-                  const value = slot === "home" ? selected.homeClubId : selected.awayClubId;
+                  const value =
+                    slot === "home"
+                      ? selected.homeClubId
+                      : selected.awayClubId;
+
+                  const clubName = clubs.find(
+                    (club) => club.club_id === value
+                  )?.club_name;
+
                   return (
-                    <label key={slot} className="text-sm text-gray-300">
-                      <span className="mb-1 block capitalize">{slot} club {automatic ? "(automatic)" : ""}</span>
-                      <select disabled={pending || automatic} value={value ?? ""} onChange={(e) => changeSlot(slot, e.target.value)} className="w-full rounded-md border border-gray-700 bg-gray-800 p-2 text-white disabled:opacity-60">
-                        <option value="">TBD / Unassigned</option>
-                        {clubs.map((club) => <option value={club.club_id} key={club.club_id}>{club.club_name}</option>)}
-                      </select>
-                    </label>
+                    <div key={slot} className="text-sm text-gray-300">
+                      <span className="mb-1 block capitalize">
+                        {slot} club {automatic ? "(automatic)" : ""}
+                      </span>
+
+                      <div className="flex min-h-10 items-center rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white">
+                        {clubName ?? "TBD / Unassigned"}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
+
               <h4 className="mb-2 text-sm font-semibold">Set-by-set scoring</h4>
               <div className="space-y-2">
                 {draft.map((set, index) => (

@@ -1,14 +1,14 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   calculateGroupStandings,
   type RankedClub,
   type StandingClub,
   type StandingMatch,
 } from "@/lib/group-standings";
-import type { BracketData } from "@/lib/bracket-types";
+import {saveQualificationAssignments} from "@/app/events/[eventId]/manage/bracket-actions";
 
 type QualificationMethod = "group" | "overall";
 type RepechageMethod = "manual" | "performance";
@@ -40,6 +40,7 @@ type AssignmentMode = "manual" | "automatic";
 type AssignmentSlot = {
   key: string;
   matchId: string;
+  phase: "main" | "repechage";
   slot: "home" | "away";
   position: number;
   round: string;
@@ -48,38 +49,52 @@ type AssignmentSlot = {
 // Find slots that can be assigned directly.
 // Slots fed by another match must remain untouched.
 function getAssignmentSlots(
-  bracket: BracketData,
+  bracketSize: number,
+  repechageCount: number,
   phase: "main" | "repechage",
 ): AssignmentSlot[] {
-  const matches = bracket.matches
-    .filter((match) =>
-      phase === "main"
-        ? match.phase === "main" && match.roundIndex === 1
-        : match.phase === "repechage",
-    )
-    .sort((a, b) => a.position - b.position);
-
-  return matches.flatMap((match) =>
-    (["home", "away"] as const)
-      .filter((slot) => {
-        return !bracket.matches.some(
-          (source) =>
-            (
-              source.winnerToId === match.id &&
-              source.winnerToSlot === slot
-            ) ||
-            (
-              source.loserToId === match.id &&
-              source.loserToSlot === slot
-            ),
-        );
-      })
-      .map((slot) => ({
-        key: `${match.id}:${slot}`,
-        matchId: match.id,
+  if (phase === "repechage") {
+    return Array.from(
+      { length: repechageCount },
+      (_, position) => position,
+    ).flatMap((position) =>
+      (["home", "away"] as const).map((slot) => ({
+        key: `repechage:${position}:${slot}`,
+        matchId: `repechage:${position}`,
+        phase: "repechage" as const,
         slot,
-        position: match.position,
-        round: match.round,
+        position,
+        round: "Repechage",
+      })),
+    );
+  }
+
+  const firstRoundMatchCount = bracketSize / 2;
+  const reservedSlots = new Set<string>();
+
+   // Each repechage winner feeds a predetermined first-round slot.
+  for (let position = 0; position < repechageCount; position++) {
+    const matchPosition = Math.floor(position / 2);
+    const slot = position % 2 === 0 ? "home" : "away";
+
+    reservedSlots.add(`${matchPosition}:${slot}`);
+  }
+
+    return Array.from(
+    { length: firstRoundMatchCount },
+    (_, position) => position,
+  ).flatMap((position) =>
+    (["home", "away"] as const)
+      .filter(
+        (slot) => !reservedSlots.has(`${position}:${slot}`),
+      )
+      .map((slot) => ({
+        key: `main:${position}:${slot}`,
+        matchId: `main:${position}`,
+        phase: "main" as const,
+        slot,
+        position,
+        round: `Round of ${bracketSize}`,
       })),
   );
 }
@@ -405,30 +420,42 @@ function AssignmentPanel({
 }
 
 export default function QualificationPlanner({
-  bracket,
+  eventId,
+  bracketSize,
   clubs,
   matches,
 }: {
   eventId: string;
-  bracket: BracketData;
+  bracketSize: 4 | 8 | 16 | 32 | 64;
   clubs: StandingClub[];
   matches: StandingMatch[];
 }) {
-  const bracketSize = bracket.bracketSize;
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+
+  // Start with every main-bracket position filled directly.
+  // The organiser can reduce this count to introduce repechage.
+  const [directCount, setDirectCount] = useState<number>(bracketSize);
+
+  // Changing bracket size resets the planner to no repechage.
+  useEffect(() => {
+    setDirectCount(bracketSize);
+    setManualRepechageIds([]);
+  }, [bracketSize]);
+
+  // Each repechage match contributes one winner to the main bracket.
+  const repechageCount = bracketSize - directCount;
+  const repechageEntrantCount = repechageCount * 2;
+  const totalEntrants = directCount + repechageEntrantCount;
+
   const directSlots = useMemo(
-    () => getAssignmentSlots(bracket, "main"),
-    [bracket],
+    () => getAssignmentSlots(bracketSize, repechageCount, "main"),
+    [bracketSize, repechageCount],
   );
 
   const repechageSlots = useMemo(
-    () => getAssignmentSlots(bracket, "repechage"),
-    [bracket],
-  );
-
-  // Number of direct qualifiers, excluding
-  // participants entering through repechage.
-  const [directCount, setDirectCount] = useState(
-    Math.max(0, bracketSize - bracket.repechageCount),
+    () => getAssignmentSlots(bracketSize, repechageCount, "repechage"),
+    [bracketSize, repechageCount],
   );
 
   const [qualificationMethod, setQualificationMethod] =
@@ -451,21 +478,6 @@ export default function QualificationPlanner({
 
   const [repechageAssignmentValues, setRepechageAssignmentValues] =
     useState<Record<string, string>>({});
-
-  // Synchronise the planner when the saved bracket
-  // configuration changes after regeneration.
-  useEffect(() => {
-    setDirectCount(
-      Math.max(0, bracketSize - bracket.repechageCount),
-    );
-    setManualRepechageIds([]);
-  }, [bracket.id, bracketSize, bracket.repechageCount]);
-
-  // Changing either quantity updates the other:
-  // bracketSize = directCount + repechageCount.
-  const repechageCount = bracketSize - directCount;
-  const repechageEntrantCount = repechageCount * 2;
-  const totalEntrants = directCount + repechageEntrantCount;
 
   const groups = useMemo(
     () => calculateGroupStandings(clubs, matches),
@@ -615,46 +627,6 @@ export default function QualificationPlanner({
   const repechageSelectionComplete =
     repechageQualifiers.length === repechageEntrantCount;
 
-  // Check the actual bracket structure.
-  const existingRepechageMatches = bracket.matches.filter(
-    (match) => match.phase === "repechage",
-  );
-
-  const firstRound = bracket.matches.filter(
-    (match) =>
-      match.phase === "main" &&
-      match.roundIndex === 1,
-  );
-
-  const reservedSlots = new Set<string>();
-
-  for (const match of bracket.matches) {
-    if (match.winnerToId && match.winnerToSlot) {
-      reservedSlots.add(
-        `${match.winnerToId}:${match.winnerToSlot}`,
-      );
-    }
-
-    if (match.loserToId && match.loserToSlot) {
-      reservedSlots.add(
-        `${match.loserToId}:${match.loserToSlot}`,
-      );
-    }
-  }
-
-  const availableDirectSlots = firstRound.reduce(
-    (total, match) =>
-      total +
-      (reservedSlots.has(`${match.id}:home`) ? 0 : 1) +
-      (reservedSlots.has(`${match.id}:away`) ? 0 : 1),
-    0,
-  );
-
-  const bracketMatchesSelection =
-    bracket.repechageCount === repechageCount &&
-    existingRepechageMatches.length === repechageCount &&
-    availableDirectSlots === directCount;
-
   const unequalMatchCounts =
     new Set(allClubs.map((club) => club.mp)).size > 1;
 
@@ -663,8 +635,7 @@ export default function QualificationPlanner({
     enoughClubs &&
     !directTie &&
     !repechageTie &&
-    repechageSelectionComplete &&
-    bracketMatchesSelection;
+    repechageSelectionComplete;
 
     
   const assignmentReady =
@@ -718,6 +689,68 @@ export default function QualificationPlanner({
       return [...valid, clubId];
     });
   }
+
+  async function saveAssignments() {
+    if (!assignmentReady || saving) return;
+
+    const assignments = [
+      ...directSlots.map((slot) => ({
+        bracket_match_id: slot.matchId,
+        club_id: activeDirectAssignments[slot.key],
+        slot: slot.slot,
+      })),
+      ...repechageSlots.map((slot) => ({
+        bracket_match_id: slot.matchId,
+        club_id: activeRepechageAssignments[slot.key],
+        slot: slot.slot,
+      })),
+    ];
+
+    setSaving(true);
+
+    try {
+      try {
+        await saveQualificationAssignments(
+          eventId,
+          assignments,
+          false,
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to save qualification assignments.";
+
+        if (!message.includes("BRACKET_RESET_REQUIRED")) {
+          throw error;
+        }
+
+        const confirmed = window.confirm(
+          "Changing these assignments will reset affected match scores or results. Continue?",
+        );
+
+        if (!confirmed) return;
+
+        await saveQualificationAssignments(
+          eventId,
+          assignments,
+          true,
+        );
+      }
+
+      window.alert("Qualification assignments saved.");
+      router.refresh();
+    } catch (error) {
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save qualification assignments.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
 
   return (
     <section className="space-y-6 rounded-xl border border-gray-800 bg-gray-900 p-5">
@@ -1063,16 +1096,6 @@ export default function QualificationPlanner({
           </p>
         )}
 
-        {!bracketMatchesSelection && (
-          <p className="text-sm text-amber-400">
-            The saved bracket does not match this selection.
-            Set the bracket to {bracketSize} teams with{" "}
-            {repechageCount} repechage matches in
-            Elimination Bracket Setup, then regenerate it.
-            Regenerating may reset existing bracket data.
-          </p>
-        )}
-
         <p
           className={`text-sm font-medium ${
             selectionReady
@@ -1163,11 +1186,20 @@ export default function QualificationPlanner({
           </p>
 
           <p className="mt-2 text-xs text-gray-500">
-            Preview only — no bracket matches, scores, or
-            database records are changed by this step.
-            Saving and server-side validation will be added
-            in Step 2D-3.
+            Saving applies the assignments to the bracket.
+            Changing assignments may reset affected match results
+            after confirmation.
           </p>
+
+          <button
+            type="button"
+            disabled={!assignmentReady || saving}
+            onClick={() => void saveAssignments()}
+            className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Saving..." : "Save assignments"}
+          </button>
+
         </div>
       </div>
 

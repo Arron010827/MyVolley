@@ -39,6 +39,82 @@ export async function createEventBracket(
   refresh(eventId);
 }
 
+export async function generateBracketWithAssignments(
+  eventId: string,
+  size: number,
+  thirdPlace: boolean,
+  repechageCount: number,
+  assignments: {
+    phase: "main" | "repechage";
+    position: number;
+    slot: BracketSlot;
+    club_id: string;
+  }[],
+  confirmReset = false,
+) {
+  if (![4, 8, 16, 32, 64].includes(size)) {
+    throw new Error("Invalid bracket size.");
+  }
+
+  if (
+    !Number.isInteger(repechageCount) ||
+    repechageCount < 0 ||
+    repechageCount > size
+  ) {
+    throw new Error("Invalid repechage match count.");
+  }
+
+  if (assignments.length === 0) {
+    throw new Error("No bracket assignments were provided.");
+  }
+
+  const slotKeys = assignments.map(
+    (item) => `${item.phase}:${item.position}:${item.slot}`,
+  );
+  const clubIds = assignments.map((item) => item.club_id);
+
+  if (
+    assignments.some(
+      (item) =>
+        !item.club_id ||
+        !Number.isInteger(item.position) ||
+        item.position < 0 ||
+        !["main", "repechage"].includes(item.phase) ||
+        !["home", "away"].includes(item.slot),
+    )
+  ) {
+    throw new Error("One or more bracket assignments are invalid.");
+  }
+
+  if (new Set(slotKeys).size !== slotKeys.length) {
+    throw new Error("A bracket position has been assigned more than once.");
+  }
+
+  if (new Set(clubIds).size !== clubIds.length) {
+    throw new Error("A club cannot be assigned to multiple positions.");
+  }
+
+  const supabase = await authenticatedDb();
+
+  const { error } = await supabase.rpc(
+    "generate_event_bracket_with_assignments",
+    {
+      p_event_id: eventId,
+      p_size: size,
+      p_third_place: thirdPlace,
+      p_repechage_count: repechageCount,
+      p_assignments: assignments,
+      p_confirm_reset: confirmReset,
+    },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  refresh(eventId);
+}
+
 export async function assignBracketClub(
   eventId: string,
   bracketMatchId: string,
@@ -74,6 +150,62 @@ export async function saveBracketSets(
     p_confirm_reset: confirmReset,
   });
   if (error) throw new Error(error.message);
+  refresh(eventId);
+}
+
+export async function saveQualificationAssignments(
+  eventId: string,
+  assignments: {
+    bracket_match_id: string;
+    club_id: string;
+    slot: BracketSlot;
+  }[],
+  confirmReset = false,
+) {
+  if (assignments.length === 0) {
+    throw new Error("No qualification assignments were provided.");
+  }
+
+  const slotKeys = assignments.map(
+    (item) => `${item.bracket_match_id}:${item.slot}`,
+  );
+
+  const clubIds = assignments.map((item) => item.club_id);
+
+  if (
+    assignments.some(
+      (item) =>
+        !item.bracket_match_id ||
+        !item.club_id ||
+        !["home", "away"].includes(item.slot),
+    )
+  ) {
+    throw new Error("One or more qualification assignments are invalid.");
+  }
+
+  if (new Set(slotKeys).size !== slotKeys.length) {
+    throw new Error("A bracket position has been assigned more than once.");
+  }
+
+  if (new Set(clubIds).size !== clubIds.length) {
+    throw new Error("A club cannot be assigned more than once.");
+  }
+
+  const supabase = await authenticatedDb();
+
+  const { error } = await supabase.rpc(
+    "save_qualification_assignments",
+    {
+      p_event_id: eventId,
+      p_assignments: assignments,
+      p_confirm_reset: confirmReset,
+    },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
   refresh(eventId);
 }
 
