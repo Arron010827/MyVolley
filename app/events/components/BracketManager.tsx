@@ -150,12 +150,13 @@ async function generateFromPlanner(
       </section>
 
       <QualificationPlanner
-        eventId={eventId}
         bracketSize={size}
         clubs={qualificationClubs}
         matches={qualificationMatches}
+        onGenerate={generateFromPlanner}
+        generating={pending}
       />
-      
+
       {bracket ? (
         <>
           <BracketBoard 

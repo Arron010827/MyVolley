@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   calculateGroupStandings,
   type RankedClub,
   type StandingClub,
   type StandingMatch,
 } from "@/lib/group-standings";
-import {saveQualificationAssignments} from "@/app/events/[eventId]/manage/bracket-actions";
 
 type QualificationMethod = "group" | "overall";
 type RepechageMethod = "manual" | "performance";
+type PlannedBracketAssignment = {
+  phase: "main" | "repechage";
+  position: number;
+  slot: "home" | "away";
+  club_id: string;
+};
 
 // Shared performance comparison:
 // 1. Match wins
@@ -420,28 +424,25 @@ function AssignmentPanel({
 }
 
 export default function QualificationPlanner({
-  eventId,
   bracketSize,
   clubs,
   matches,
+  onGenerate,
+  generating,
 }: {
-  eventId: string;
   bracketSize: 4 | 8 | 16 | 32 | 64;
   clubs: StandingClub[];
   matches: StandingMatch[];
+  onGenerate: (
+    repechageCount: number,
+    assignments: PlannedBracketAssignment[],
+  ) => Promise<void>;
+  generating: boolean;
 }) {
-  const router = useRouter();
-  const [saving, setSaving] = useState(false);
 
   // Start with every main-bracket position filled directly.
   // The organiser can reduce this count to introduce repechage.
   const [directCount, setDirectCount] = useState<number>(bracketSize);
-
-  // Changing bracket size resets the planner to no repechage.
-  useEffect(() => {
-    setDirectCount(bracketSize);
-    setManualRepechageIds([]);
-  }, [bracketSize]);
 
   // Each repechage match contributes one winner to the main bracket.
   const repechageCount = bracketSize - directCount;
@@ -467,6 +468,12 @@ export default function QualificationPlanner({
   const [manualRepechageIds, setManualRepechageIds] =
     useState<string[]>([]);
   
+  // Changing bracket size resets the planner to no repechage.
+  useEffect(() => {
+    setDirectCount(bracketSize);
+    setManualRepechageIds([]);
+  }, [bracketSize]);
+
   const [directAssignmentMode, setDirectAssignmentMode] =
     useState<AssignmentMode>("automatic");
 
@@ -690,66 +697,27 @@ export default function QualificationPlanner({
     });
   }
 
-  async function saveAssignments() {
-    if (!assignmentReady || saving) return;
+  async function handleGenerate() {
+    if (!assignmentReady || generating) return;
 
-    const assignments = [
+    const assignments: PlannedBracketAssignment[] = [
       ...directSlots.map((slot) => ({
-        bracket_match_id: slot.matchId,
+        phase: slot.phase,
+        position: slot.position,
         club_id: activeDirectAssignments[slot.key],
         slot: slot.slot,
       })),
       ...repechageSlots.map((slot) => ({
-        bracket_match_id: slot.matchId,
+        phase: slot.phase,
+        position: slot.position,
         club_id: activeRepechageAssignments[slot.key],
         slot: slot.slot,
       })),
     ];
 
-    setSaving(true);
-
-    try {
-      try {
-        await saveQualificationAssignments(
-          eventId,
-          assignments,
-          false,
-        );
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Unable to save qualification assignments.";
-
-        if (!message.includes("BRACKET_RESET_REQUIRED")) {
-          throw error;
-        }
-
-        const confirmed = window.confirm(
-          "Changing these assignments will reset affected match scores or results. Continue?",
-        );
-
-        if (!confirmed) return;
-
-        await saveQualificationAssignments(
-          eventId,
-          assignments,
-          true,
-        );
-      }
-
-      window.alert("Qualification assignments saved.");
-      router.refresh();
-    } catch (error) {
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to save qualification assignments.",
-      );
-    } finally {
-      setSaving(false);
-    }
+    await onGenerate(repechageCount, assignments);
   }
+
 
 
   return (
@@ -1193,12 +1161,13 @@ export default function QualificationPlanner({
 
           <button
             type="button"
-            disabled={!assignmentReady || saving}
-            onClick={() => void saveAssignments()}
+            disabled={!assignmentReady || generating}
+            onClick={() => void handleGenerate()}
             className="mt-4 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {saving ? "Saving..." : "Save assignments"}
+            {generating ? "Generating..." : "Generate Bracket"}
           </button>
+
 
         </div>
       </div>
