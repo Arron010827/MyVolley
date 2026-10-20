@@ -38,19 +38,6 @@ export default function DashboardPage() {
             </p>
           </Link>
 
-          {/* Clubs */}
-          <Link
-            href="/clubs"
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-5 hover:shadow-md hover:scale-[1.01] transition-all duration-200"
-          >
-            <p className="text-lg font-semibold text-gray-900">
-              🏐 Browse Clubs
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              Find and join volleyball clubs in Malaysia
-            </p>
-          </Link>
-
           {/* Register club */}
           <Link
             href="/clubs/register"
@@ -87,6 +74,19 @@ export default function DashboardPage() {
             </p>
             <p className="text-sm text-gray-500 mt-1">
               View upcoming tournaments and leagues
+            </p>
+          </Link>
+
+          {/* Admin — club registration approvals */}
+          <Link
+            href="/dashboard/clubs"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-5 hover:shadow-md hover:scale-[1.01] transition-all duration-200"
+          >
+            <p className="text-lg font-semibold text-gray-900">
+              🏐 Club Registrations
+            </p>
+            <p className="text-sm text-gray-500 mt-1">
+              Review and approve new club applications (admin only)
             </p>
           </Link>
 
