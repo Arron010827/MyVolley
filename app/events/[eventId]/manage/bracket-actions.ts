@@ -257,3 +257,52 @@ export async function applyGroupQualifiers(
   // Refresh organiser and public bracket views.
   refresh(eventId);
 }
+
+//_______ Save knockout match schedule___________________________
+export async function saveKnockoutSchedule(
+  eventId: string,
+  schedule: {
+    match_id: string;
+    court: string;
+    match_date: string;
+    match_time: string;
+  }[],
+) {
+  if (schedule.length === 0) {
+    throw new Error("No knockout matches were provided.");
+  }
+
+  if (
+    schedule.some(
+      (match) =>
+        !match.match_id ||
+        !match.court.trim() ||
+        !match.match_date ||
+        !match.match_time,
+    )
+  ) {
+    throw new Error(
+      "Every knockout match must have a date, time, and court.",
+    );
+  }
+
+  if (
+    new Set(schedule.map((match) => match.match_id)).size !==
+    schedule.length
+  ) {
+    throw new Error("Duplicate match IDs were provided.");
+  }
+
+  const supabase = await authenticatedDb();
+
+  const { error } = await supabase.rpc("save_knockout_schedule", {
+    p_event_id: eventId,
+    p_schedule: schedule,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  refresh(eventId);
+}

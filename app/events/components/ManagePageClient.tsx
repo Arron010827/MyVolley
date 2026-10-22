@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import RulesUrlManager from "@/app/events/components/RulesUrlManager";
 import ClubGroupManager from "@/app/events/components/ClubGroupManager";
 import MatchScheduler from "@/app/events/components/MatchScheduler";
 import StreamManagementTab from "@/app/events/components/StreamManagementTab";
@@ -8,7 +9,7 @@ import type { BracketData } from "@/lib/bracket-types";
 import BracketManager from "@/app/events/components/BracketManager";
 
 interface Props {
-  event: { id: string; title: string; type: string };
+  event: { id: string; title: string; type: string; rules_url: string | null; };
   clubEvents: {
     club_id: string;
     group_name: string | null;
@@ -126,12 +127,18 @@ export default function ManagePageClient({
 
       {/* Tab content */}
       {activeTab === "teams" && (
-        <ClubGroupManager
-          eventId={eventId}
-          eventType={event.type}
-          clubEvents={clubEvents}
-          allClubs={allClubs}
-        />
+        <div className="space-y-8">
+          <RulesUrlManager
+            eventId={eventId}
+            initialUrl={event.rules_url}
+          />
+          <ClubGroupManager
+            eventId={eventId}
+            eventType={event.type}
+            clubEvents={clubEvents}
+            allClubs={allClubs}
+          />
+      </div>
       )}
 
       {activeTab === "schedule" && (
@@ -142,6 +149,7 @@ export default function ManagePageClient({
           matches={matches.filter(
             (match) => match.round === "Group Stage" || match.round === "League Stage"
           )}
+          bracket={bracket}
         />
       )}
       {activeTab === "bracket" && (

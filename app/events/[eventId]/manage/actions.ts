@@ -32,6 +32,53 @@ async function verifyAccess(eventId: string) {
   return supabase;
 }
 
+/**
+ * Save the Rules & Regulations URL for an event.
+ * An empty URL clears the existing link.
+ */
+export async function saveRulesUrl(
+  eventId: string,
+  rulesUrl: string,
+) {
+  const supabase = await verifyAccess(eventId);
+
+  const trimmedUrl = rulesUrl.trim();
+  let normalizedUrl: string | null = null;
+
+  if (trimmedUrl) {
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(trimmedUrl);
+    } catch {
+      throw new Error("Please enter a valid URL.");
+    }
+
+    if (
+      parsedUrl.protocol !== "https:" &&
+      parsedUrl.protocol !== "http:"
+    ) {
+      throw new Error("The URL must start with http:// or https://.");
+    }
+
+    normalizedUrl = parsedUrl.toString();
+  }
+
+  const { error } = await supabase
+    .from("events")
+    .update({ rules_url: normalizedUrl })
+    .eq("id", eventId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath(`/events/${eventId}/manage`);
+  revalidatePath(`/events/${eventId}`);
+
+  return { success: true };
+}
+
 // ─── Add club to event with group ────────────────────────────────────────────
 export async function addClubToEventWithGroup(
   eventId: string,

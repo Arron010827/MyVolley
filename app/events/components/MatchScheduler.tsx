@@ -8,6 +8,8 @@ import {
 } from "@/app/events/[eventId]/manage/actions";
 import { Match } from "./ManagePageClient";
 import { validateMatchSets } from "@/lib/match-score-validation";
+import MatchSchedulerKnockout from "@/app/events/components/MatchSchedulerKnockout";
+import { BracketData } from "@/lib/bracket-types";
 
 interface ClubEvent {
   club_id: string;
@@ -21,6 +23,7 @@ interface Props {
   eventType: string;
   clubEvents: ClubEvent[];
   matches: Match[];
+  bracket: BracketData | null;
 }
 
 // ─── Round robin algorithm ────────────────────────────────────────────────────
@@ -69,6 +72,7 @@ export default function MatchScheduler({
   eventType,
   clubEvents,
   matches: initialMatches,
+  bracket,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -653,6 +657,11 @@ export default function MatchScheduler({
           </div>
         ))
       )}
+
+      <MatchSchedulerKnockout
+        eventId={eventId}
+        bracket={bracket}
+      />
     </div>
   );
 }

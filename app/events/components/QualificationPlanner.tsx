@@ -76,15 +76,16 @@ function getAssignmentSlots(
   const firstRoundMatchCount = bracketSize / 2;
   const reservedSlots = new Set<string>();
 
-   // Each repechage winner feeds a predetermined first-round slot.
+  // Reserve exactly one slot per repechage winner.
+  // Each reserved slot faces a direct qualifier.
   for (let position = 0; position < repechageCount; position++) {
-    const matchPosition = Math.floor(position / 2);
-    const slot = position % 2 === 0 ? "home" : "away";
+    const matchPosition = position;
+    const slot = "away";
 
     reservedSlots.add(`${matchPosition}:${slot}`);
   }
 
-    return Array.from(
+  return Array.from(
     { length: firstRoundMatchCount },
     (_, position) => position,
   ).flatMap((position) =>
@@ -756,8 +757,8 @@ export default function QualificationPlanner({
               className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white"
             >
               {Array.from(
-                { length: bracketSize + 1 },
-                (_, index) => index,
+                { length: bracketSize / 2 + 1 },
+                (_, index) => bracketSize / 2 + index,
               ).map((count) => (
                 <option key={count} value={count}>
                   {count} clubs
@@ -861,7 +862,7 @@ export default function QualificationPlanner({
             className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-white"
           >
             {Array.from(
-              { length: bracketSize + 1 },
+              { length: bracketSize / 2 + 1 },
               (_, index) => index,
             ).map((count) => (
               <option key={count} value={count}>

@@ -218,6 +218,21 @@ export default async function EventDetailPage({
             </span>
           </div>
         </div>
+        
+        {/* Rules & Regulations — shown when a document URL is available */}
+        {event.rules_url && (
+          <div className="max-w-5xl mx-auto px-4 pt-6">
+            <a
+              href={event.rules_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:border-red-500 hover:bg-gray-800"
+            >
+              📄 Rules & Regulations
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Tabs — handles overview, schedule, standings, bracket */}
