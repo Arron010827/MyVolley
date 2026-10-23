@@ -88,7 +88,7 @@ export default async function ManageEventPage({
     .select(
       `
       id, match_number, court, match_time, match_date,
-      home_score, away_score, group_name, round,
+      home_score, away_score, group_name, round, stage,
       home_club:home_club_id(id, club_name, logo_url),
       away_club:away_club_id(id, club_name, logo_url),
       event_match_sets(set_number, home_points, away_points)
@@ -165,6 +165,7 @@ export default async function ManageEventPage({
       away_score: row.away_score as number | null,
       group_name: row.group_name as string | null,
       round: row.round as string | null,
+      stage: row.stage as string | null,
       home_club_id: home?.id ?? "",
       away_club_id: away?.id ?? "",
       home_club: home

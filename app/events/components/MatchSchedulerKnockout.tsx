@@ -5,10 +5,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BracketData } from "@/lib/bracket-types";
 import { saveKnockoutSchedule } from "@/app/events/[eventId]/manage/bracket-actions";
+import type { Match } from "@/app/events/components/ManagePageClient";
 
 interface Props {
   eventId: string;
   bracket: BracketData | null;
+  existingMatches: Match[];
+  groupMatchDuration: number;
 }
 
 function getKnockoutRounds(bracketSize: number) {
@@ -50,6 +53,29 @@ type ScheduledKnockoutMatch = {
   durationMinutes: number;
 };
 
+type ScheduleConflict = {
+  match: string;
+  issue: string;
+};
+
+function getAbsoluteMinutes(date: string, time: string): number {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+
+  return (
+    Math.floor(Date.UTC(year, month - 1, day) / 60000) +
+    hours * 60 +
+    minutes
+  );
+}
+
+function normalizeCourt(court: string | number | null): string {
+  return String(court ?? "")
+    .trim()
+    .replace(/^court\s*/i, "")
+    .toLowerCase();
+}
+
 function addMinutesToTime(time: string, minutes: number): string {
   const [hours, mins] = time.split(":").map(Number);
   const totalMinutes = hours * 60 + mins + minutes;
@@ -79,6 +105,8 @@ function timeToMinutes(time: string): number {
 export default function MatchSchedulerKnockout({
   eventId,
   bracket,
+  existingMatches,
+  groupMatchDuration,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -99,12 +127,13 @@ export default function MatchSchedulerKnockout({
     useState(1);
   const [laterRoundDuration, setLaterRoundDuration] = useState(60);
 
-  const [scheduledMatches, setScheduledMatches] =
-    useState<ScheduledKnockoutMatch[]>([]);
+  const [scheduledMatches, setScheduledMatches] = useState<ScheduledKnockoutMatch[]>([]);
   const [scheduleError, setScheduleError] = useState("");
+  const [hasScheduleConflicts, setHasScheduleConflicts] = useState(false);
 
   function handleGenerateSchedule() {
         setScheduleError("");
+        setHasScheduleConflicts(false);
         setScheduledMatches([]);
 
         if (!bracket || bracket.matches.length === 0) {
@@ -402,12 +431,97 @@ export default function MatchSchedulerKnockout({
             a.court - b.court
         );
 
+        const conflicts: ScheduleConflict[] = [];
+
+        for (const knockout of generated) {
+          const knockoutStart = getAbsoluteMinutes(
+            knockout.date,
+            knockout.startTime
+          );
+          const knockoutEnd = knockoutStart + knockout.durationMinutes;
+
+          const bracketMatch = matchesById.get(knockout.bracketMatchId);
+
+          for (const groupMatch of existingMatches) {
+            if (!groupMatch.match_date || !groupMatch.match_time) {
+              continue;
+            }
+
+            const groupStart = getAbsoluteMinutes(
+              groupMatch.match_date,
+              groupMatch.match_time
+            );
+            const groupEnd = groupStart + groupMatchDuration;
+
+            const sameCourt =
+              normalizeCourt(groupMatch.court) ===
+              normalizeCourt(knockout.court);
+
+            const overlaps =
+              knockoutStart < groupEnd && groupStart < knockoutEnd;
+
+            if (sameCourt && overlaps) {
+              conflicts.push({
+                match: `${knockout.round} — ${knockout.date}`,
+                issue:
+                  `Court ${knockout.court} overlaps with group/league ` +
+                  `match #${groupMatch.match_number} (${groupMatch.match_time}).`,
+              });
+            }
+
+            const knockoutClubIds = [
+              bracketMatch?.homeClubId,
+              bracketMatch?.awayClubId,
+            ].filter((id): id is string => Boolean(id));
+
+            const groupClubIds = [
+              groupMatch.home_club_id,
+              groupMatch.away_club_id,
+            ].filter(Boolean);
+
+            const sharedClub = knockoutClubIds.some((id) =>
+              groupClubIds.includes(id)
+            );
+
+            if (sharedClub && overlaps) {
+              conflicts.push({
+                match: `${knockout.round} — ${knockout.date}`,
+                issue:
+                  `A club is scheduled for overlapping matches with group/league ` +
+                  `match #${groupMatch.match_number}.`,
+              });
+            }
+          }
+        }
+
+        if (conflicts.length > 0) {
+          setHasScheduleConflicts(true);
+
+          const uniqueMessages = [
+            ...new Set(conflicts.map((conflict) => conflict.issue)),
+          ];
+          
+          setScheduleError(
+            `Found ${conflicts.length} scheduling conflict(s):\n` +
+            uniqueMessages.map((message) => `• ${message}`).join("\n")
+          );
+          setScheduledMatches(generated);
+          return;
+        }
+
         setScheduledMatches(generated);
     }
 
   async function handleSaveSchedule() {
     setScheduleError("");
     setSaveMessage("");
+
+    if (hasScheduleConflicts) {
+      setScheduleError(
+        "Please resolve scheduling conflicts before saving."
+      );
+      return;
+    }
 
     if (scheduledMatches.length === 0) {
       setScheduleError("Generate a schedule preview first.");
@@ -608,7 +722,7 @@ export default function MatchSchedulerKnockout({
             <button
               type="button"
               onClick={handleSaveSchedule}
-              disabled={isSaving || scheduledMatches.length === 0}
+              disabled={isSaving || scheduledMatches.length === 0 || hasScheduleConflicts}
               className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
             >
               {isSaving ? "Saving..." : "Save Schedule"}

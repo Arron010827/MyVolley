@@ -2,12 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  saveMatches,
-  saveMatchSets,
-} from "@/app/events/[eventId]/manage/actions";
+import { saveMatches } from "@/app/events/[eventId]/manage/actions";
 import { Match } from "./ManagePageClient";
-import { validateMatchSets } from "@/lib/match-score-validation";
+import MatchScheduleDisplay from "./MatchScheduleDisplay";
 import MatchSchedulerKnockout from "@/app/events/components/MatchSchedulerKnockout";
 import { BracketData } from "@/lib/bracket-types";
 
@@ -76,6 +73,9 @@ export default function MatchScheduler({
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [scheduleStage, setScheduleStage] = useState<
+    "group-league" | "elimination"
+  >("group-league");
 
   // Schedule generator inputs
   const [startTime, setStartTime] = useState("08:00");
@@ -84,14 +84,6 @@ export default function MatchScheduler({
   const [startDate, setStartDate] = useState("");
   const [maxPerDay, setMaxPerDay] = useState(20);
   const [dayGap, setDayGap] = useState(1);
-
-  // Score editing state
-  const [editingMatch, setEditingMatch] = useState<string | null>(null);
-  const [sets, setSets] = useState<{ home: string; away: string }[]>([
-    { home: "", away: "" },
-    { home: "", away: "" },
-    { home: "", away: "" },
-  ]);
 
   // Group clubs by group
   const grouped = clubEvents.reduce<Record<string, ClubEvent[]>>((acc, ce) => {
@@ -243,84 +235,6 @@ export default function MatchScheduler({
     });
   }
 
-  // ─── Save Sets ─────────────────────────────────────────────────────────────
-  async function handleSaveSets(matchId: string) {
-    const filledSets = sets
-      .map((s, i) => ({
-        set_number: i + 1,
-        home_points: s.home === "" ? NaN : Number(s.home),
-        away_points: s.away === "" ? NaN : Number(s.away),
-      }));
-
-    // Allow only trailing empty rows, not gaps between completed sets
-    while (
-      filledSets.length > 0 &&
-      Number.isNaN(filledSets[filledSets.length - 1].home_points) &&
-      Number.isNaN(filledSets[filledSets.length - 1].away_points)
-    ) {
-      filledSets.pop();
-    }
-
-    if (filledSets.length === 0) {
-      alert("Please enter at least one completed set.");
-      return;
-    }
-
-    const error = validateMatchSets(filledSets);
-
-    if (error) {
-      alert(error);
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        await saveMatchSets(eventId, matchId, filledSets);
-        setEditingMatch(null);
-        router.refresh();
-      } catch (error) {
-        alert(
-          error instanceof Error
-            ? error.message
-            : "Unable to save match scores."
-        );
-      }
-    });
-  }
-
-  function openScoreEditor(match: Match) {
-    setEditingMatch(match.id);
-
-    if (match.sets && match.sets.length > 0) {
-      // Pre-fill with existing set scores
-      const existingSets = match.sets
-        .sort((a, b) => a.set_number - b.set_number)
-        .map((s) => ({
-          home: s.home_points.toString(),
-          away: s.away_points.toString(),
-        }));
-      setSets(existingSets);
-    } else {
-      // No existing sets — start with 3 empty rows
-      setSets([
-        { home: "", away: "" },
-        { home: "", away: "" },
-        { home: "", away: "" },
-      ]);
-    }
-  }
-
-  // Group matches by group for display
-  const matchesByGroup = initialMatches.reduce<Record<string, Match[]>>(
-    (acc, m) => {
-      const key = m.group_name ?? "all";
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(m);
-      return acc;
-    },
-    {},
-  );
-
   return (
     <div className="space-y-6">
       {/* Schedule generator */}
@@ -438,229 +352,47 @@ export default function MatchScheduler({
         )}
       </div>
 
-      {/* Match list */}
-      {initialMatches.length === 0 ? (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl py-16 text-center text-gray-500">
-          <p>No matches generated yet</p>
-          <p className="text-sm mt-1">
-            Configure the settings above and click Generate
-          </p>
-        </div>
-      ) : (
-        Object.entries(matchesByGroup).map(([groupKey, groupMatches]) => (
-          <div
-            key={groupKey}
-            className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden"
+      {/* Saved match schedule */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2 border-b border-gray-800 pb-3">
+          <button
+            type="button"
+            onClick={() => setScheduleStage("group-league")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              scheduleStage === "group-league"
+                ? "bg-red-600 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-white"
+            }`}
           >
-            {/* Group header */}
-            <div className="px-5 py-3 border-b border-gray-800">
-              <span className="text-sm font-bold text-white">
-                {groupKey === "all"
-                  ? eventType === "league"
-                    ? "League Stage"
-                    : "Group Stage"
-                  : `Group ${groupKey}`}
-              </span>
-              <span className="text-gray-500 text-xs ml-2">
-                {groupMatches.length} matches
-              </span>
-            </div>
+            Group / League
+          </button>
 
-            {/* Match table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-800 text-gray-500 text-xs">
-                    <th className="px-5 py-3 text-left w-12">Match</th>
-                    <th className="px-5 py-3 text-left w-30">Date</th>
-                    <th className="px-5 py-3 text-left w-18">Time</th>
-                    <th className="px-5 py-3 text-left w-22">Court</th>
-                    <th className="px-5 py-3 text-center w-40">Home</th>
-                    <th className="px-5 py-3 text-center w-50">Score</th>
-                    <th className="px-5 py-3 text-center w-40">Away</th>
-                    <th className="px-5 py-3 text-center w-28">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {groupMatches.map((match) => (
-                    <tr
-                      key={match.id}
-                      className="hover:bg-gray-800/50 transition-colors"
-                    >
-                      <td className="px-5 py-3 text-gray-400">
-                        #{match.match_number}
-                      </td>
-                      <td className="px-5 py-3 text-gray-300">
-                        {match.match_date
-                          ? new Date(match.match_date).toLocaleDateString(
-                              "en-MY",
-                              {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              },
-                            )
-                          : "—"}
-                      </td>
-                      <td className="px-5 py-3 text-gray-300">
-                        {match.match_time ?? "—"}
-                      </td>
-                      <td className="px-5 py-3 text-gray-300">
-                        {match.court ?? "—"}
-                      </td>
-                      <td className="px-5 py-3 font-medium text-center text-white">
-                        {match.home_club?.club_name ?? "—"}
-                      </td>
+          <button
+            type="button"
+            onClick={() => setScheduleStage("elimination")}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              scheduleStage === "elimination"
+                ? "bg-red-600 text-white"
+                : "bg-gray-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Elimination
+          </button>
+        </div>
 
-                      {/* Score cell */}
-                      <td className="px-5 py-3 text-center">
-                        {editingMatch === match.id ? (
-                          <div className="space-y-1">  
-                            <div className="flex items-center justify-center gap-2 mt-2">
-                              <label className="text-xs text-gray-400">
-                                Number of sets
-                              </label>
-
-                              <select
-                                value={sets.length}
-                                onChange={(e) => {
-                                  const count = Number(e.target.value);
-
-                                  setSets((previous) =>
-                                    Array.from(
-                                      { length: count },
-                                      (_, i) => previous[i] ?? { home: "", away: "" }
-                                    )
-                                  );
-                                }}
-                                className="bg-gray-700 border border-gray-600 text-white rounded px-2 py-1 text-xs"
-                              >
-                                {[1, 2, 3, 4, 5].map((count) => (
-                                  <option key={count} value={count}>
-                                    {count}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {sets.map((set, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center justify-center gap-1"
-                              >
-                                <span className="text-gray-600 text-xs w-10 text-right">
-                                  Set {i + 1}
-                                </span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={99}
-                                  value={set.home}
-                                  onChange={(e) => {
-                                    const updated = [...sets];
-                                    updated[i] = {
-                                      ...updated[i],
-                                      home: e.target.value,
-                                    };
-                                    setSets(updated);
-                                  }}
-                                  className="w-10 bg-gray-700 border border-gray-600 text-white text-center rounded px-1 py-0.5 text-xs focus:outline-none focus:border-red-500"
-                                />
-                                <span className="text-gray-500 text-xs">—</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={99}
-                                  value={set.away}
-                                  onChange={(e) => {
-                                    const updated = [...sets];
-                                    updated[i] = {
-                                      ...updated[i],
-                                      away: e.target.value,
-                                    };
-                                    setSets(updated);
-                                  }}
-                                  className="w-10 bg-gray-700 border border-gray-600 text-white text-center rounded px-1 py-0.5 text-xs focus:outline-none focus:border-red-500"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center gap-1">
-                            {/* Match score */}
-                            <span
-                              className={`font-mono font-bold text-xl ${
-                                match.home_score !== null
-                                  ? "text-white"
-                                  : "text-gray-600"
-                              }`}
-                            >
-                              {match.home_score !== null
-                                ? `${match.home_score} — ${match.away_score}`
-                                : "vs"}
-                            </span>
-
-                            {/* Set scores in pipe format */}
-                            {match.sets && match.sets.length > 0 && (
-                              <span className="text-gray-500 text-xs font-mono">
-                                {match.sets
-                                  .sort((a, b) => a.set_number - b.set_number)
-                                  .map(
-                                    (set) =>
-                                      `${set.home_points}-${set.away_points}`,
-                                  )
-                                  .join(" | ")}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-5 py-3 font-medium text-center text-white">
-                        {match.away_club?.club_name ?? "—"}
-                      </td>
-
-                      {/* Action cell */}
-                      <td className="px-5 py-3 text-right">
-                        {editingMatch === match.id ? (
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleSaveSets(match.id)}
-                              disabled={isPending}
-                              className="text-xs bg-green-700 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingMatch(null)}
-                              className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => openScoreEditor(match)}
-                            className="text-xs text-red-400 hover:text-red-300 bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors"
-                          >
-                            {match.home_score !== null
-                              ? "Edit Score"
-                              : "Enter Score"}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))
-      )}
+        <MatchScheduleDisplay
+          eventId={eventId}
+          matches={initialMatches}
+          stage={scheduleStage}
+          canEditScores={true}
+        />
+      </div>
 
       <MatchSchedulerKnockout
         eventId={eventId}
         bracket={bracket}
+        existingMatches={initialMatches}
+        groupMatchDuration={matchDuration}
       />
     </div>
   );

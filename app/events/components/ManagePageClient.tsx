@@ -56,6 +56,7 @@ export interface Match {
   away_score: number | null;
   group_name: string | null;
   round: string | null;
+  stage: string | null;
   home_club_id: string;
   away_club_id: string;
   home_club: ClubInfo | null;
@@ -146,9 +147,7 @@ export default function ManagePageClient({
           eventId={eventId}
           eventType={event.type}
           clubEvents={clubEvents}
-          matches={matches.filter(
-            (match) => match.round === "Group Stage" || match.round === "League Stage"
-          )}
+          matches={matches}
           bracket={bracket}
         />
       )}
