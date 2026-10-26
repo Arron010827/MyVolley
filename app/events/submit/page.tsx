@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createEvent } from "./actions";
+import EventDetailsForm, {  type EventDetails, } from "@/app/events/components/EventDetailsForm";
 
 const STATES = [
   "Johor",
@@ -27,71 +28,32 @@ const STATES = [
 ];
 
 export default function CreateEventPage() {
-  const router = useRouter();
-
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [eventDate, setEventDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [location, setLocation] = useState("");
-  const [state, setState] = useState("");
-  const [type, setType] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [gender, setGender] = useState("");
+  const [formKey, setFormKey] = useState(0);
 
-  async function handleCreateEvent() {
+  async function handleCreateEvent(values: EventDetails) {
+    setLoading(true);
     setError("");
 
-    if (!title.trim()) {
-      setError("Event title is required.");
-      return;
-    }
-    if (!gender) {
-      setError("Please select a gender type.");
-      return;
-    }
-    if (!eventDate) {
-      setError("Event date is required.");
-      return;
-    }
-    if (!location.trim()) {
-      setError("Location is required.");
-      return;
-    }
-    if (!state) {
-      setError("Please select a state.");
-      return;
-    }
-    if (!type) {
-      setError("Please select an event type.");
-      return;
-    }
-    if (endDate && endDate < eventDate) {
-      setError("End date cannot be before the start date.");
-      return;
-    }
+    try {
+      const result = await createEvent(values);
 
-    setLoading(true);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
 
-    const result = await createEvent({
-      title,
-      description,
-      eventDate,
-      endDate,
-      location,
-      state,
-      type,
-      gender,
-    });
-
-    setLoading(false);
-
-    if (result?.error) {
-      setError(result.error);
-    } else {
       setSuccess(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred.",
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -116,13 +78,7 @@ export default function CreateEventPage() {
             <button
               onClick={() => {
                 setSuccess(false);
-                setTitle("");
-                setDescription("");
-                setEventDate("");
-                setEndDate("");
-                setLocation("");
-                setState("");
-                setType("");
+                setFormKey((prev) => prev + 1);
               }}
               className="text-sm text-gray-500 hover:text-red-600 transition-colors"
             >
@@ -158,147 +114,24 @@ export default function CreateEventPage() {
             {error}
           </div>
         )}
-
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <div className="flex flex-col gap-6">
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Event Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. KL Open Volleyball Championship 2026"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
-              />
-            </div>
-
-            {/* Gender */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Gender Category <span className="text-red-400">*</span>
-              </label>
-              <select
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition bg-white"
-              >
-                <option value="">Select gender type</option>
-                <option value="mix">Mixed</option>
-                <option value="men">Men</option>
-                <option value="women">Women</option>
-              </select>
-            </div>
-
-            {/* Event type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Event Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition bg-white"
-              >
-                <option value="">Select event type</option>
-                <option value="tournament">🏆 Tournament</option>
-                <option value="league">🏅 League</option>
-              </select>
-            </div>
-
-            {/* Date range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Date
-                  <span className="text-gray-400 font-normal ml-1">
-                    (optional)
-                  </span>
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
-                />
-              </div>
-            </div>
-
-            {/* Location */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Location <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Axiata Arena, Bukit Jalil"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition"
-              />
-            </div>
-
-            {/* State */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                State <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition bg-white"
-              >
-                <option value="">Select a state</option>
-                {STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-                <span className="text-gray-400 font-normal ml-1">
-                  (optional)
-                </span>
-              </label>
-              <textarea
-                placeholder={
-                  "Tell participants about the event — format, registration details, prizes..."
-                }
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={4}
-                className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition resize-none"
-              />
-            </div>
-
-            {/* Submit button */}
-            <button
-              onClick={handleCreateEvent}
-              disabled={loading}
-              className="w-full bg-red-600 text-white font-semibold py-3 rounded-lg hover:bg-red-700 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 mt-2"
-            >
-              {loading ? "Posting event..." : "Post Event"}
-            </button>
-          </div>
-        </div>
+            <EventDetailsForm
+              key={formKey}
+              initialValues={{
+                title: "",
+                gender: "",
+                type: "",
+                eventDate: "",
+                endDate: "",
+                location: "",
+                state: "",
+                description: "",
+              }}
+              submitLabel="Post Event"
+              loadingLabel="Posting event..."
+              loading={loading}
+              error={error}
+              onSubmit={handleCreateEvent}
+            />
 
         <p className="text-center text-xs text-gray-400 mt-4">
           Fields marked with <span className="text-red-500">*</span> are

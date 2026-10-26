@@ -114,6 +114,17 @@ export default async function ManageEventPage({
     )
     .order("match_number", { ascending: true });
 
+  const { data: eventDocuments, error: documentsError } = await supabase
+  .from("event_documents")
+  .select("id, event_id, document_name, document_url, display_order, created_at")
+  .eq("event_id", eventId)
+  .order("display_order", { ascending: true })
+  .order("created_at", { ascending: true });
+
+  if (documentsError) {
+    throw new Error(documentsError.message);
+  }
+
   const allMatches = (allMatchesRaw ?? []).map((row) => {
     const home = Array.isArray(row.home_club)
       ? (row.home_club[0] as { club_name: string } | undefined)
@@ -231,6 +242,7 @@ export default async function ManageEventPage({
           allEvents={allEvents ?? []}
           allMatches={allMatches}
           bracket={bracket}
+          documents={eventDocuments ?? []}
         />
       </div>
     </main>

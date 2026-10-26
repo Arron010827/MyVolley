@@ -32,41 +32,52 @@ async function verifyAccess(eventId: string) {
   return supabase;
 }
 
-/**
- * Save the Rules & Regulations URL for an event.
- * An empty URL clears the existing link.
- */
-export async function saveRulesUrl(
+export async function updateEventDetails(
   eventId: string,
-  rulesUrl: string,
+  formData: {
+    title: string;
+    description: string;
+    eventDate: string;
+    endDate: string;
+    location: string;
+    state: string;
+    type: string;
+    gender: string;
+  },
 ) {
   const supabase = await verifyAccess(eventId);
 
-  const trimmedUrl = rulesUrl.trim();
-  let normalizedUrl: string | null = null;
+  // Basic validation
+  if (
+    !formData.title.trim() ||
+    !formData.eventDate ||
+    !formData.location.trim() ||
+    !formData.state ||
+    !formData.type ||
+    !formData.gender
+  ) {
+    throw new Error("Please complete all required event details.");
+  }
 
-  if (trimmedUrl) {
-    let parsedUrl: URL;
-
-    try {
-      parsedUrl = new URL(trimmedUrl);
-    } catch {
-      throw new Error("Please enter a valid URL.");
-    }
-
-    if (
-      parsedUrl.protocol !== "https:" &&
-      parsedUrl.protocol !== "http:"
-    ) {
-      throw new Error("The URL must start with http:// or https://.");
-    }
-
-    normalizedUrl = parsedUrl.toString();
+  if (
+    formData.endDate &&
+    formData.endDate < formData.eventDate
+  ) {
+    throw new Error("End date cannot be before the start date.");
   }
 
   const { error } = await supabase
     .from("events")
-    .update({ rules_url: normalizedUrl })
+    .update({
+      title: formData.title.trim(),
+      description: formData.description.trim() || null,
+      event_date: formData.eventDate,
+      end_date: formData.endDate || null,
+      location: formData.location.trim(),
+      state: formData.state,
+      type: formData.type,
+      gender: formData.gender,
+    })
     .eq("id", eventId);
 
   if (error) {
@@ -75,8 +86,167 @@ export async function saveRulesUrl(
 
   revalidatePath(`/events/${eventId}/manage`);
   revalidatePath(`/events/${eventId}`);
+  revalidatePath("/events");
 
   return { success: true };
+}
+
+function validateDocumentUrl(value: string) {
+  const url = value.trim();
+
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function refreshEventPages(eventId: string) {
+  revalidatePath(`/events/${eventId}/manage`);
+  revalidatePath(`/events/${eventId}`);
+}
+
+export async function addEventDocument(
+  eventId: string,
+  documentName: string,
+  documentUrl: string
+) {
+  const supabase = await verifyAccess(eventId);
+
+  const name = documentName.trim();
+  const url = validateDocumentUrl(documentUrl);
+
+  if (!name) throw new Error("Document name is required.");
+  if (!url) throw new Error("Please enter a valid HTTP or HTTPS URL.");
+
+  const { data: lastDocument, error: orderError } = await supabase
+    .from("event_documents")
+    .select("display_order")
+    .eq("event_id", eventId)
+    .order("display_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (orderError) throw new Error(orderError.message);
+
+  const nextOrder = (lastDocument?.display_order ?? -1) + 1;
+
+  const { error } = await supabase.from("event_documents").insert({
+    event_id: eventId,
+    document_name: name,
+    document_url: url,
+    display_order: nextOrder,
+  });
+
+  if (error) throw new Error(error.message);
+
+  refreshEventPages(eventId);
+}
+
+export async function updateEventDocument(
+  eventId: string,
+  documentId: string,
+  documentName: string,
+  documentUrl: string
+) {
+  const supabase = await verifyAccess(eventId);
+
+  const name = documentName.trim();
+  const url = validateDocumentUrl(documentUrl);
+
+  if (!name) throw new Error("Document name is required.");
+  if (!url) throw new Error("Please enter a valid HTTP or HTTPS URL.");
+
+  const { error } = await supabase
+    .from("event_documents")
+    .update({
+      document_name: name,
+      document_url: url,
+    })
+    .eq("event_id", eventId)
+    .eq("id", documentId);
+
+  if (error) throw new Error(error.message);
+
+  refreshEventPages(eventId);
+}
+
+export async function deleteEventDocument(
+  eventId: string,
+  documentId: string
+) {
+  const supabase = await verifyAccess(eventId);
+
+  const { error } = await supabase
+    .from("event_documents")
+    .delete()
+    .eq("event_id", eventId)
+    .eq("id", documentId);
+
+  if (error) throw new Error(error.message);
+
+  refreshEventPages(eventId);
+}
+
+export async function reorderEventDocument(
+  eventId: string,
+  documentId: string,
+  direction: "up" | "down"
+) {
+  const supabase = await verifyAccess(eventId);
+
+  const { data: documents, error: fetchError } = await supabase
+    .from("event_documents")
+    .select("id, display_order, created_at")
+    .eq("event_id", eventId)
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const orderedDocuments = [...(documents ?? [])];
+  const currentIndex = orderedDocuments.findIndex(
+    (document) => document.id === documentId
+  );
+
+  if (currentIndex === -1) {
+    throw new Error("Document not found.");
+  }
+
+  const targetIndex =
+    direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+  // Nothing to do if the document is already at the requested boundary.
+  if (targetIndex < 0 || targetIndex >= orderedDocuments.length) return;
+
+  [orderedDocuments[currentIndex], orderedDocuments[targetIndex]] = [
+    orderedDocuments[targetIndex],
+    orderedDocuments[currentIndex],
+  ];
+
+  const results = await Promise.all(
+    orderedDocuments.map((document, index) =>
+      supabase
+        .from("event_documents")
+        .update({ display_order: index })
+        .eq("event_id", eventId)
+        .eq("id", document.id)
+    )
+  );
+
+  const failedUpdate = results.find((result) => result.error);
+
+  if (failedUpdate?.error) {
+    throw new Error(failedUpdate.error.message);
+  }
+
+  refreshEventPages(eventId);
 }
 
 // ─── Add club to event with group ────────────────────────────────────────────

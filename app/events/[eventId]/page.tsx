@@ -64,6 +64,17 @@ export default async function EventDetailPage({
     )
     .eq("event_id", eventId)
     .order("match_number", { ascending: true });
+  
+  const { data: eventDocuments, error: documentsError } = await supabase
+    .from("event_documents")
+    .select("id, document_name, document_url, display_order, created_at")
+    .eq("event_id", eventId)
+    .order("display_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+    if (documentsError) {
+      throw new Error(documentsError.message);
+    }
 
   const matches = (matchesRaw ?? []).map((row) => {
     const home = Array.isArray(row.home_club)
@@ -219,20 +230,39 @@ export default async function EventDetailPage({
           </div>
         </div>
         
-        {/* Rules & Regulations — shown when a document URL is available */}
-        {event.rules_url && (
-          <div className="max-w-5xl mx-auto px-4 pt-6">
-            <a
-              href={event.rules_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:border-red-500 hover:bg-gray-800"
-            >
-              📄 Rules & Regulations
-              <span aria-hidden="true">↗</span>
-            </a>
-          </div>
+        {eventDocuments && eventDocuments.length > 0 && (
+          <section className="mx-auto max-w-5xl px-4 pt-6">
+            <h2 className="mb-4 text-lg font-semibold">
+              Event Documents
+            </h2>
+
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {eventDocuments.map((document, index) => (
+                <a
+                  key={document.id}
+                  href={document.document_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-w-0 items-center gap-3 rounded-xl border border-gray-200 p-4 transition hover:border-blue-400 hover:bg-gray-50 hover:text-blue-600"
+                >
+                  <span className="shrink-0 text-2xl" aria-hidden="true">
+                    📄
+                  </span>
+
+                  <div className="min-w-0">
+                    <p className="break-words font-medium">
+                      {document.document_name}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Open document ↗
+                    </p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
         )}
+
       </div>
 
       {/* Tabs — handles overview, schedule, standings, bracket */}

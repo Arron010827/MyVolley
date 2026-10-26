@@ -32,6 +32,9 @@ export default function ClubGroupManager({
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [clubSearch, setClubSearch] = useState("");
+  const [selectedClubId, setSelectedClubId] = useState("");
+  const [isClubDropdownOpen, setIsClubDropdownOpen] = useState(false);
   const [message, setMessage] = useState<{
     text: string;
     type: "error" | "success";
@@ -40,8 +43,16 @@ export default function ClubGroupManager({
   // Clubs already in event (for exclusion from dropdown)
   const addedClubIds = new Set(clubEvents.map((c) => c.club_id));
 
-  // Available clubs not yet added
+  // Available clubs that is not yet added
   const availableClubs = allClubs.filter((c) => !addedClubIds.has(c.id));
+  // Search available clubs by name
+  const filteredClubs = availableClubs
+    .filter((club) =>
+      club.club_name
+        .toLowerCase()
+        .includes(clubSearch.trim().toLowerCase())
+    )
+    .slice(0, 8);
 
   // Group clubs by group_name
   const grouped = clubEvents.reduce<Record<string, ClubEvent[]>>((acc, ce) => {
@@ -60,11 +71,23 @@ export default function ClubGroupManager({
 
   async function handleAdd(formData: FormData) {
     setMessage(null);
+    if (!formData.get("club_id")) {
+      setMessage({
+        text: "Please select a club from the search results.",
+        type: "error",
+      });
+      return;
+    }
     const result = await addClubToEventWithGroup(eventId, formData);
     if (result?.alreadyAdded) {
       setMessage({ text: "This club is already in the event.", type: "error" });
     } else {
       setMessage({ text: "Club added successfully!", type: "success" });
+      // Clear the search so another club can be added immediately.
+      setClubSearch("");
+      setSelectedClubId("");
+      setIsClubDropdownOpen(false);
+
       setTimeout(() => setMessage(null), 3000);
       router.refresh();
     }
@@ -91,19 +114,63 @@ export default function ClubGroupManager({
         <h2 className="font-semibold text-lg mb-4">Add Club</h2>
 
         <form action={handleAdd} className="flex flex-col sm:flex-row gap-4">
-          {/* Club selector */}
-          <select
+        {/* Searchable club selector */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={clubSearch}
+            placeholder="Search for a club..."
+            autoComplete="off"
+            onChange={(e) => {
+              setClubSearch(e.target.value);
+              setSelectedClubId("");
+              setIsClubDropdownOpen(true);
+            }}
+            onFocus={() => setIsClubDropdownOpen(true)}
+            onBlur={() => {
+              // Delay closing so a result can be clicked first.
+              setTimeout(() => setIsClubDropdownOpen(false), 150);
+            }}
+            className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-red-500"
+          />
+
+          {/* Submit the selected club's ID, not its displayed name */}
+          <input
+            type="hidden"
             name="club_id"
-            required
-            className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-red-500"
-          >
-            <option value="">— Select a club —</option>
-            {availableClubs.map((club) => (
-              <option key={club.id} value={club.id}>
-                {club.club_name}
-              </option>
-            ))}
-          </select>
+            value={selectedClubId}
+          />
+
+          {isClubDropdownOpen && clubSearch.trim() && (
+            <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-gray-800 border border-gray-700 rounded-lg shadow-xl">
+              {filteredClubs.length > 0 ? (
+                filteredClubs.map((club) => (
+                  <button
+                    key={club.id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSelectedClubId(club.id);
+                      setClubSearch(club.club_name);
+                      setIsClubDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-700 transition-colors ${
+                      selectedClubId === club.id
+                        ? "bg-gray-700 text-white"
+                        : "text-gray-200"
+                    }`}
+                  >
+                    {club.club_name}
+                  </button>
+                ))
+              ) : (
+                <p className="px-4 py-3 text-sm text-gray-400">
+                  No matching clubs found.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
           {/* Group selector — only for tournaments */}
           {eventType === "tournament" && (
