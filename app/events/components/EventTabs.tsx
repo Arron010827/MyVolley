@@ -57,6 +57,13 @@ interface Event {
   state: string;
   is_association_event: boolean;
   gender: string;
+  entry_fee: number | null;
+  team_size: number | null;
+  team_capacity: number | null;
+  competition_format: string | null;
+  net_height: number | null;
+  winning_points: number | null;
+  poster_url: string | null;
 }
 
 interface MatchSet {
@@ -195,8 +202,8 @@ export default function EventTabs({
   now,
 }: Props) {
   const [activeTab, setActiveTab] = useState<
-    "featured" | "schedule" | "standings" | "bracket"
-  >("featured");
+    "details" | "featured" | "schedule" | "standings" | "bracket"
+  >("details");
   const [scheduleSubTab, setScheduleSubTab] = useState<
     "group" | "elimination"
   >("group");
@@ -222,6 +229,7 @@ export default function EventTabs({
   );
 
   const tabs = [
+    { key: "details", label: "📋 Event Details" },
     { key: "featured", label: "📺 Featured" },
     { key: "schedule", label: "📅 Schedule" },
     { key: "standings", label: "🏆 Standings" },
@@ -246,6 +254,89 @@ export default function EventTabs({
           </button>
         ))}
       </div>
+      
+      {/* Event Details tab */}
+      {activeTab === "details" && (
+        <div className="space-y-6">
+          {event.poster_url && (
+            <div className="overflow-hidden rounded-xl border border-gray-800">
+              <img
+                src={event.poster_url}
+                alt={`${event.title} poster`}
+                className="w-full max-h-[500px] object-contain bg-gray-900"
+              />
+            </div>
+          )}
+
+          {event.description && (
+            <section className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+              <h2 className="mb-3 text-lg font-semibold">About the Event</h2>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-300">
+                {event.description}
+              </p>
+            </section>
+          )}
+
+          <section className="rounded-xl border border-gray-800 bg-gray-900 p-5">
+            <h2 className="mb-4 text-lg font-semibold">Competition Information</h2>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <p className="text-xs text-gray-500">Entry Fee</p>
+                <p className="mt-1 font-medium">
+                  {event.entry_fee === null
+                    ? "Not specified"
+                    : event.entry_fee === 0
+                      ? "Free"
+                      : `RM ${Number(event.entry_fee).toFixed(2)}`}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Maximum Players per Team</p>
+                <p className="mt-1 font-medium">
+                  {event.team_size ?? "Not specified"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Team Capacity</p>
+                <p className="mt-1 font-medium">
+                  {event.team_capacity ?? "Not specified"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Competition Format</p>
+                <p className="mt-1 font-medium">
+                  {event.competition_format === "single_elimination_first_round"
+                    ? "Single Elimination from First Round"
+                    : event.competition_format ===
+                        "group_stage_single_elimination_second_round"
+                      ? "Group Stage followed by Single Elimination"
+                      : "Not specified"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Net Height</p>
+                <p className="mt-1 font-medium">
+                  {event.net_height ? `${event.net_height} cm` : "Not specified"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs text-gray-500">Winning Points</p>
+                <p className="mt-1 font-medium">
+                  {event.winning_points
+                    ? `${event.winning_points} points`
+                    : "Not specified"}
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Featured tab */}
       {activeTab === "featured" && (

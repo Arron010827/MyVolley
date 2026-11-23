@@ -125,6 +125,12 @@ export default function CreateEventPage() {
                 location: "",
                 state: "",
                 description: "",
+                entryFee: "",
+                teamSize: "",
+                teamCapacity: "",
+                competitionFormat: "",
+                netHeight: "",
+                winningPoints: "",
               }}
               submitLabel="Post Event"
               loadingLabel="Posting event..."

@@ -237,7 +237,34 @@ export default function MatchScheduler({
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap gap-2 border-b border-gray-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setScheduleStage("group-league")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            scheduleStage === "group-league"
+              ? "bg-red-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white"
+          }`}
+        >
+          Group / League
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setScheduleStage("elimination")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            scheduleStage === "elimination"
+              ? "bg-red-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white"
+          }`}
+        >
+          Elimination
+        </button>
+      </div>
+
       {/* Schedule generator */}
+      {scheduleStage === "group-league" && (
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
         <h2 className="font-semibold text-lg mb-4">Generate Schedule</h2>
         <p className="text-gray-500 text-sm mb-4">
@@ -351,35 +378,19 @@ export default function MatchScheduler({
           </p>
         )}
       </div>
+      )}
+
+      {scheduleStage === "elimination" && (
+        <MatchSchedulerKnockout
+        eventId={eventId}
+        bracket={bracket}
+        existingMatches={initialMatches}
+        groupMatchDuration={matchDuration}
+      />
+      )}
 
       {/* Saved match schedule */}
       <div className="space-y-4">
-        <div className="flex flex-wrap gap-2 border-b border-gray-800 pb-3">
-          <button
-            type="button"
-            onClick={() => setScheduleStage("group-league")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              scheduleStage === "group-league"
-                ? "bg-red-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            Group / League
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setScheduleStage("elimination")}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              scheduleStage === "elimination"
-                ? "bg-red-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            Elimination
-          </button>
-        </div>
-
         <MatchScheduleDisplay
           eventId={eventId}
           matches={initialMatches}
@@ -388,12 +399,6 @@ export default function MatchScheduler({
         />
       </div>
 
-      <MatchSchedulerKnockout
-        eventId={eventId}
-        bracket={bracket}
-        existingMatches={initialMatches}
-        groupMatchDuration={matchDuration}
-      />
     </div>
   );
 }

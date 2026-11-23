@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import StreamAssignCard from "@/components/StreamAssignCard";
 import {
   assignStream,
@@ -60,12 +60,20 @@ export default function StreamManagementTab({
   allEvents,
   allMatches,
 }: Props) {
+  const [activeStreamTab, setActiveStreamTab] = useState<
+    "unassigned" | "assigned"
+  >("unassigned");
+
   const streamByMatchId = Object.fromEntries(
     streams.map((s) => [s.match_id, s]),
   );
 
-  const unassignedMatches = matches.filter((m) => !streamByMatchId[m.id]);
-  const assignedMatches = matches.filter((m) => streamByMatchId[m.id]);
+  const unassignedMatches = matches
+    .filter((m) => !streamByMatchId[m.id])
+    .sort((a, b) => b.match_number - a.match_number);
+  const assignedMatches = matches
+    .filter((m) => streamByMatchId[m.id])
+    .sort((a, b) => b.match_number - a.match_number);
 
   const handleAssign = useCallback(
     (youtubeUrl: string, matchId: string, evId: string) =>
@@ -103,18 +111,46 @@ export default function StreamManagementTab({
 
   return (
     <div className="space-y-8">
+        {/* Stream subtabs */}
+      <div className="flex gap-2 border-b border-gray-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveStreamTab("unassigned")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            activeStreamTab === "unassigned"
+              ? "bg-red-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white"
+          }`}
+        >
+          <span className="text-yellow-400">⚠️</span>
+          Matches without streams
+          <span className="text-sm text-gray-500 font-normal">
+            ({unassignedMatches.length})
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveStreamTab("assigned")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            activeStreamTab === "assigned"
+              ? "bg-red-600 text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white"
+          }`}
+        >
+          <span className="text-green-400">✅</span>
+          Matches with streams
+          <span className="text-sm text-gray-500 font-normal">
+            ({assignedMatches.length})
+          </span>
+        </button>
+      </div>
+
       {/* Unassigned matches */}
-      {unassignedMatches.length > 0 && (
-        <div>
-          <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <span className="text-yellow-400">⚠️</span>
-            Matches without streams
-            <span className="text-sm text-gray-500 font-normal">
-              ({unassignedMatches.length})
-            </span>
-          </h2>
-          <div className="space-y-3">
-            {unassignedMatches.map((match) => (
+      {activeStreamTab === "unassigned" && (
+        <div className="space-y-3">
+          {unassignedMatches.length > 0 ? (
+            unassignedMatches.map((match) => (
               <StreamAssignCard
                 key={match.id}
                 stream={null}
@@ -129,23 +165,20 @@ export default function StreamManagementTab({
                 onEdit={async () => {}}
                 onDelete={async () => {}}
               />
-            ))}
-          </div>
+            ))
+          ) : (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-500">
+              All matches have streams assigned.
+            </div>
+          )}
         </div>
       )}
 
       {/* Assigned matches */}
-      {assignedMatches.length > 0 && (
-        <div>
-          <h2 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <span className="text-green-400">✅</span>
-            Matches with streams
-            <span className="text-sm text-gray-500 font-normal">
-              ({assignedMatches.length})
-            </span>
-          </h2>
-          <div className="space-y-3">
-            {assignedMatches.map((match) => (
+      {activeStreamTab === "assigned" && (
+        <div className="space-y-3">
+          {assignedMatches.length > 0 ? (
+            assignedMatches.map((match) => (
               <StreamAssignCard
                 key={match.id}
                 stream={streamByMatchId[match.id]}
@@ -171,8 +204,12 @@ export default function StreamManagementTab({
                   handleDelete(streamByMatchId[match.id]!.id)
                 }
               />
-            ))}
-          </div>
+            ))
+          ) : (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center text-gray-500">
+              No streams have been assigned yet.
+            </div>
+          )}
         </div>
       )}
 

@@ -21,6 +21,13 @@ interface Props {
     end_date: string | null;
     location: string;
     state: string;
+    entry_fee: number | null;
+    team_size: number | null;
+    team_capacity: number | null;
+    competition_format: string | null;
+    net_height: number | null;
+    winning_points: number | null;
+    poster_url?: string | null;
   };
   clubEvents: {
     club_id: string;
@@ -220,6 +227,12 @@ export default function ManagePageClient({
               location: event.location ?? "",
               state: event.state ?? "",
               description: event.description ?? "",
+              entryFee: event.entry_fee?.toString() ?? "",
+              teamSize: event.team_size?.toString() ?? "",
+              teamCapacity: event.team_capacity?.toString() ?? "",
+              competitionFormat: event.competition_format ?? "",
+              netHeight: event.net_height?.toString() ?? "",
+              winningPoints: event.winning_points?.toString() ?? "",
             }}
             submitLabel="Save Event Details"
             loadingLabel="Saving changes..."

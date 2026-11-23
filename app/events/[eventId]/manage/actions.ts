@@ -43,6 +43,12 @@ export async function updateEventDetails(
     state: string;
     type: string;
     gender: string;
+    entryFee: string;
+    teamSize: string;
+    teamCapacity: string;
+    competitionFormat: string;
+    netHeight: string;
+    winningPoints: string;
   },
 ) {
   const supabase = await verifyAccess(eventId);
@@ -65,6 +71,54 @@ export async function updateEventDetails(
   ) {
     throw new Error("End date cannot be before the start date.");
   }
+  if (
+    formData.entryFee &&
+    (!Number.isFinite(Number(formData.entryFee)) ||
+      Number(formData.entryFee) < 0)
+  ) {
+    throw new Error("Please enter a valid entry fee.");
+  }
+
+  if (
+    formData.teamSize &&
+    (!Number.isInteger(Number(formData.teamSize)) ||
+      Number(formData.teamSize) <= 0)
+  ) {
+    throw new Error("Team size must be a positive whole number.");
+  }
+
+  if (
+    formData.teamCapacity &&
+    (!Number.isInteger(Number(formData.teamCapacity)) ||
+      Number(formData.teamCapacity) <= 0)
+  ) {
+    throw new Error("Team capacity must be a positive whole number.");
+  }
+
+  if (
+    formData.competitionFormat &&
+    ![
+      "single_elimination_first_round",
+      "group_stage_single_elimination_second_round",
+    ].includes(formData.competitionFormat)
+  ) {
+    throw new Error("Invalid competition format.");
+  }
+
+  if (
+    formData.netHeight &&
+    (!Number.isInteger(Number(formData.netHeight)) ||
+      Number(formData.netHeight) <= 0)
+  ) {
+    throw new Error("Please enter a valid net height.");
+  }
+
+  if (
+    formData.winningPoints &&
+    !["25", "31"].includes(formData.winningPoints)
+  ) {
+    throw new Error("Invalid winning points selection.");
+  }
 
   const { error } = await supabase
     .from("events")
@@ -77,6 +131,16 @@ export async function updateEventDetails(
       state: formData.state,
       type: formData.type,
       gender: formData.gender,
+      entry_fee: formData.entryFee ? Number(formData.entryFee) : null,
+      team_size: formData.teamSize ? Number(formData.teamSize) : null,
+      team_capacity: formData.teamCapacity
+        ? Number(formData.teamCapacity)
+        : null,
+      competition_format: formData.competitionFormat || null,
+      net_height: formData.netHeight ? Number(formData.netHeight) : null,
+      winning_points: formData.winningPoints
+        ? Number(formData.winningPoints)
+        : null,
     })
     .eq("id", eventId);
 
